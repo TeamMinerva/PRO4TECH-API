@@ -114,9 +114,9 @@ A proposta não é substituir a atuação do PO ou permitir que a IA tome decis�
     <tr>
       <td>12</td>
       <td>2</td>
-      <td>Como usuário, quero ver a porcentagem de semelhança e uma breve explicação do porquê cada item é semelhante para entender a recomendação.</td>
-      <td>Baixa</td>
-      <td>5</td>
+      <td>Como usuário, quero utilizar um chat com IA que tenha acesso à base de conhecimento completa do sistema para tirar dúvidas sobre projetos, funcionalidades, problemas já registrados e suas respectivas soluções, para obter informações e encontrar soluções com base no conhecimento existente.</td>
+      <td>Alta</td>
+      <td>8</td>
     </tr>
     <tr>
       <td>13</td>
@@ -142,19 +142,12 @@ A proposta não é substituir a atuação do PO ou permitir que a IA tome decis�
     <tr>
       <td>16</td>
       <td>3</td>
-      <td>Como usuário, quero utilizar um chat com IA que tenha acesso à base de conhecimento completa do sistema para tirar dúvidas sobre projetos, funcionalidades, problemas já registrados e suas respectivas soluções, para obter informações e encontrar soluções com base no conhecimento existente.</td>
-      <td>Alta</td>
-      <td>8</td>
-    </tr>
-    <tr>
-      <td>17</td>
-      <td>3</td>
       <td>Como usuário, quero que, ao mencionar dados da base de conhecimento, a IA inclua um link clicável que abre o item mencionado (projeto/epic/feature/PBI/dev), preferencialmente em nova aba/janela, sem fechar o chat atual.</td>
       <td>Média</td>
       <td>5</td>
     </tr>
     <tr>
-      <td>18</td>
+      <td>17</td>
       <td>3</td>
       <td>Como usuário, quero exportar um projeto em formato CSV para poder importar essas informações no Azure Boards.</td>
       <td>Média</td>
@@ -169,17 +162,17 @@ A proposta não é substituir a atuação do PO ou permitir que a IA tome decis�
 ### 🎯 Sprint 1
 - ✅ Status: Em andamento
 - 📅 Período: 07/09 - 27/09
-- 📄 Documentação: [Clique aqui]
+- 📄 Documentação: [Clique aqui](docs/sprints/sprint1.md)
 
 ### 🎯 Sprint 2
-- ✅ Status: Em andamento
+- ✅ Status: Planejada
 - 📅 Período: 13/04 - 03/05
-- 📄 Documentação: [Clique aqui]
+- 📄 Documentação: [Clique aqui](docs/sprints/sprint2.md)
 
 ### 🎯 Sprint 3
-- ✅ Status: Em andamento
+- ✅ Status: Planejada
 - 📅 Período: 11/05 - 31/05
-- 📄 Documentação: [Clique aqui]
+- 📄 Documentação: [Clique aqui](docs/sprints/sprint3.md)
 
 ## 💻 Tecnologias utilizadas
 <p align="center">
@@ -240,14 +233,15 @@ A proposta não é substituir a atuação do PO ou permitir que a IA tome decis�
         <tr>
             <td>Wendy Mininel</td>
             <td>Developer</td>
-            <td><a href="https://github.com/JkDeltaz"><img src="https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white"></a></td>
-            <td><a href="https://www.linkedin.com/in/caio-c%C3%A9sar-santos-79976636a/"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white"></a></td>
+            <td><a href="https://github.com/WendyMininel"><img src="https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white"></a></td>
+            <td><a href="https://www.linkedin.com/in/wendy-mininel-279300353"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white"></a></td>
         </tr>
         <tr>
             <td>Gustavo Garcia</td>
             <td>Developer</td>
-            <td><a href="https://github.com/JkDeltaz"><img src="https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white"></a></td>
-            <td><a href="https://www.linkedin.com/in/caio-c%C3%A9sar-santos-79976636a/"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white"></a></td>
+            <td><a href="https://github.com/gustav0-gg"><img src="https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white"></a></td>
+            <td><a href="
+            https://www.linkedin.com/in/ggg-"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white"></a></td>
         </tr>
     </table>
 </div>
