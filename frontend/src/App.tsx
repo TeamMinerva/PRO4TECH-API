@@ -1,32 +1,15 @@
-import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Login from "./telas/Login";
+import Cadastro from "./telas/Cadastro";
 
 function App() {
-  const [message, setMessage] = useState("Conectando ao backend...");
-
-  useEffect(() => {
-    fetch("http://localhost:3000/api/test")
-      .then((response) => response.json())
-      .then((data) => {
-        setMessage(data.message);
-      })
-      .catch(() => {
-        setMessage("Não foi possível conectar ao backend.");
-        
-      });
-  }, []);
-
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold">
-          Pro4Tech
-        </h1>
-
-        <p className="mt-4">
-          {message}
-        </p>
-      </div>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/cadastro" element={<Cadastro />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
