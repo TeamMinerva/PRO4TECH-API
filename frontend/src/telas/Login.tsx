@@ -1,6 +1,37 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { loginUser, saveSession } from "../services/authService";
 
 export default function Login() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!email.trim() || !password) {
+      setError("Preencha o e-mail e a senha.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await loginUser(email.trim(), password);
+      saveSession(response.token, response.user);
+      navigate("/home");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Credenciais inválidas.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div
       className="bg-[#191b1c] w-full h-screen overflow-hidden flex items-center p-6 lg:py-10 lg:pl-[50px] lg:pr-[50px] animate-slide-in-left"
@@ -8,7 +39,11 @@ export default function Login() {
       data-name="login"
     >
       <div className="w-full lg:h-full lg:max-h-[732px] flex flex-col lg:flex-row items-center lg:items-start justify-center lg:justify-between gap-12 lg:gap-[50px]">
-        <form className="flex-1 flex flex-col gap-10 lg:h-full lg:justify-between">
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="flex-1 flex flex-col gap-10 lg:h-full lg:justify-between"
+        >
           <div className="flex flex-col gap-40">
             <div className="w-full max-w-[370px] mt-3 lg:mt-4">
               <p
@@ -36,9 +71,15 @@ export default function Login() {
                       id="email"
                       type="email"
                       placeholder="E-mail"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (error) setError(null);
+                      }}
                       className="peer w-full bg-transparent border-0 p-0 m-0 text-[20px] text-white placeholder-[#3d3f40] outline-none"
                       style={{ fontFamily: "Poppins, sans-serif" }}
                       data-node-id="17:19"
+                      disabled={loading}
                     />
                   </div>
                   <div
@@ -53,9 +94,15 @@ export default function Login() {
                       id="password"
                       type="password"
                       placeholder="Senha"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (error) setError(null);
+                      }}
                       className="peer w-full bg-transparent border-0 p-0 m-0 text-[20px] text-white placeholder-[#3d3f40] outline-none"
                       style={{ fontFamily: "Poppins, sans-serif" }}
                       data-node-id="17:22"
+                      disabled={loading}
                     />
                   </div>
                   <div
@@ -64,17 +111,29 @@ export default function Login() {
                     data-node-id="17:23"
                   />
                 </div>
+
+                {error && (
+                  <div className="w-full max-w-[370px] -mt-5 transition-opacity duration-200">
+                    <p
+                      className="text-[15px] font-normal leading-tight text-[#ED6A32]"
+                      style={{ fontFamily: "Poppins, sans-serif" }}
+                    >
+                      {error}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
           <div className="w-full flex flex-col gap-10">
             <button
               type="submit"
-              className="self-end w-[125px] h-[50px] bg-[#141617] rounded-[10px] text-white text-[20px] transition-transform duration-200 hover:-translate-y-1"
+              disabled={loading}
+              className="self-end px-6 h-[50px] min-w-[125px] bg-[#141617] rounded-[10px] text-white text-[20px] transition-transform duration-200 hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
               style={{ fontFamily: "Poppins, sans-serif" }}
               data-node-id="23:84"
             >
-              Acessar
+              {loading ? "Acessando..." : "Acessar"}
             </button>
             <Link
               to="/cadastro"
