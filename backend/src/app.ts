@@ -1,19 +1,21 @@
 import express from "express";
 import cors from "cors";
-import developersRouter from './routes/developers';
+import developerRoutes from './routes/developer.routes';
+import projectRoutes from "./routes/project.routes";
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
-app.use('/developer', developersRouter);
+app.use(express.json()); 
+
+app.use("/api/projects", projectRoutes);
+app.use('/api/developers', developerRoutes);
 
 app.get("/", (req, res) => {
   res.json({
     message: "API Pro4Tech funcionando!"
   });
 });
-
 
 
 app.get("/api/test", (req, res) => {
