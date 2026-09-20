@@ -1,0 +1,15 @@
+{
+  "name": "pro4tech-api",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Scripts da raiz para rodar backend e frontend juntos, sem Docker (Windows e Linux).",
+  "scripts": {
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
+    "dev": "concurrently -n backend,frontend -c blue,green --kill-others-on-fail \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4"
+  }
+}
