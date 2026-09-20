@@ -20,11 +20,23 @@ wsl --install
 git clone https://github.com/TeamMinerva/PRO4TECH-API.git
 ```
 
-### 2. Subir a aplicação com Docker
+### 2. Configurar .env
+Renomeie o arquivo `.env.example`, localizado na pasta backend, para `.env`.
+
+Abra o arquivo e altere a senha para:
+
+postgres
+
+### 3. Subir a aplicação com Docker
 
 Na raiz do projeto, execute:
 ```
 docker-compose up --build
+```
+
+### 4. Executar migrations do Prisma
+```
+docker compose exec backend npx prisma migrate deploy
 ```
 ## 🌐 Acessos
 
@@ -44,4 +56,14 @@ wsl -l -v
 Parar os containers:
 ```
 docker-compose down
+```
+
+Para desenvolvimento e criação de novas migrations, utilize:
+```
+docker compose exec backend npx prisma migrate dev --name nome-da-migration
+```
+
+Após alterar o schema.prisma, é possível gerar novamente o Prisma Client com:
+```
+docker compose exec backend npx prisma generate
 ```
