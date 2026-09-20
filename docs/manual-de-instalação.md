@@ -33,11 +33,11 @@ Na raiz do projeto, execute:
 ```
 docker-compose up --build
 ```
-
 ### 4. Executar migrations do Prisma
 ```
 docker compose exec backend npx prisma migrate deploy
 ```
+
 ## 🌐 Acessos
 
 Após subir os containers:
