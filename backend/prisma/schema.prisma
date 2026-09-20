@@ -22,4 +22,58 @@ model Developer {
     active       Boolean  @default(true)
     createdAt    DateTime @default(now())
     updatedAt    DateTime @updatedAt
+    pbis         PBI[]
+}
+
+enum ProjectStatus {
+    PLANNED
+    IN_PROGRESS
+    DONE
+}
+
+model Project {
+    id           Int           @id @default(autoincrement())
+    name         String
+    technologies String
+    status       ProjectStatus @default(PLANNED)
+    epics        Epic[]
+    createdAt    DateTime      @default(now())
+    updatedAt    DateTime      @updatedAt
+}
+
+model Epic {
+    id             Int       @id @default(autoincrement())
+    name           String
+    description    String
+    objective      String
+    expectedResult String
+    projectId      Int
+    project        Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+    features       Feature[]
+    createdAt      DateTime  @default(now())
+    updatedAt      DateTime  @updatedAt
+}
+
+model Feature {
+    id               Int      @id @default(autoincrement())
+    name             String
+    description      String
+    approvalCriteria String
+    epicId           Int
+    epic             Epic     @relation(fields: [epicId], references: [id], onDelete: Restrict)
+    pbis             PBI[]
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+}
+
+model PBI {
+    id                 Int         @id @default(autoincrement())
+    title              String
+    userStory          String
+    acceptanceCriteria String
+    featureId          Int
+    feature            Feature     @relation(fields: [featureId], references: [id], onDelete: Restrict)
+    developers         Developer[]
+    createdAt          DateTime    @default(now())
+    updatedAt          DateTime    @updatedAt
 }
