@@ -1,6 +1,5 @@
 import { useState } from 'react';
 
-
 // --- TIPAGENS ---
 export interface Desenvolvedor {
   id: string;
@@ -55,7 +54,7 @@ export default function CadastroProjeto() {
     { id: '2', nome: 'Dev Backend' },
   ];
 
-
+  // --- FUNÇÕES DE MANIPULAÇÃO DE ESTADO ---
   const adicionarEpico = () => {
     const novo: Epico = { id: crypto.randomUUID(), nome: '', descricao: '', objetivo: '', resultadoEsperado: '', features: [] };
     setProjeto((prev) => ({ ...prev, epicos: [...prev.epicos, novo] }));
@@ -111,95 +110,139 @@ export default function CadastroProjeto() {
     }));
   };
 
-  const handleSalvar = () => {
-    console.log("Payload para a API:", projeto);
+  const handleSalvar = async () => {
+    try {
+      console.log("Enviando payload para a API:", projeto);
+      const resposta = await fetch('http://localhost:3000/api/projetos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(projeto),
+      });
+
+      if (resposta.ok) {
+        alert('Projeto salvo com sucesso!');
+      } else {
+        alert('Erro ao salvar o projeto.');
+      }
+    } catch (erro) {
+      console.error('Erro de conexão:', erro);
+      alert('Não foi possível conectar ao servidor.');
+    }
   };
 
   // --- RENDERIZAÇÃO ---
   return (
-    <div className="flex h-screen bg-[#1c1c1c] text-[#a0a0a0] font-sans">
+    <div className="flex h-screen bg-[#1c1c1c] text-[#a0a0a0]">
 
       <div className="flex-1 overflow-y-auto p-10 scrollbar-thin scrollbar-thumb-gray-700 transition-all duration-300">
-        <button className="mb-6 text-gray-400 hover:text-white">← Voltar</button>
+        <button className="mb-6 text-gray-400 hover:text-white font-['Poppins'] text-lg">← Voltar</button>
 
-        {/* Projeto */}
+        {/* Nível 0: Projeto (Único que continua como placeholder) */}
         <div className="mb-8">
           <input
             type="text"
             placeholder="Nome do projeto"
-            className="w-full bg-transparent text-3xl font-semibold text-white mb-4 outline-none placeholder-gray-500"
+            className="w-full bg-transparent text-3xl font-semibold text-white mb-4 outline-none placeholder-gray-500 font-['Outfit']"
             value={projeto.nome}
             onChange={(e) => setProjeto({ ...projeto, nome: e.target.value })}
           />
-          <div className="flex flex-col gap-2 text-sm mb-6 border-b border-gray-800 pb-6">
-            <input type="text" placeholder="Status" className="bg-transparent outline-none w-1/3" />
-            <input type="text" placeholder="Tecnologias" className="bg-transparent outline-none w-1/3" />
+          <div className="flex flex-col gap-3 text-lg mb-6 border-b border-gray-800 pb-6 font-['Poppins']">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-300 w-32">Status:</span>
+              <input type="text" className="bg-transparent outline-none flex-1 text-gray-200" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-300 w-32">Tecnologias:</span>
+              <input type="text" className="bg-transparent outline-none flex-1 text-gray-200" />
+            </div>
           </div>
         </div>
 
-        {/* Épicos */}
-        <div className="border-l-2 border-[#333] pl-6 ml-2 space-y-8 relative">
+        {/* Nível 1: Épicos */}
+        <div className="border-l-2 border-[#333] pl-6 ml-2 space-y-10 relative">
           {projeto.epicos.map((epico, iE) => (
-            <div key={epico.id} className="space-y-3">
+            <div key={epico.id} className="space-y-4">
 
-
-              <div className="flex items-center gap-2">
-                <span className="text-white font-medium whitespace-nowrap">{iE + 1}.0.0</span>
+              {/* Título do Épico - Outfit */}
+              <div className="flex items-center gap-3">
+                <span className="text-white text-xl font-semibold whitespace-nowrap font-['Outfit']">{iE + 1}.0.0  Épico:</span>
                 <input
                   type="text"
-                  placeholder="Nome do Épico"
-                  className="w-full bg-transparent text-white font-medium outline-none placeholder-gray-600"
+                  className="w-full bg-transparent text-white text-xl font-medium outline-none pb-1 font-['Outfit']"
                   value={epico.nome}
                   onChange={(e) => atualizarEpico(epico.id, 'nome', e.target.value)}
                 />
               </div>
 
-              <input type="text" placeholder="Descrição" value={epico.descricao} onChange={(e) => atualizarEpico(epico.id, 'descricao', e.target.value)} className="w-full bg-transparent text-sm outline-none placeholder-gray-600" />
-              <input type="text" placeholder="Objetivo" value={epico.objetivo} onChange={(e) => atualizarEpico(epico.id, 'objetivo', e.target.value)} className="w-full bg-transparent text-sm outline-none placeholder-gray-600" />
-              <input type="text" placeholder="Resultado esperado" value={epico.resultadoEsperado} onChange={(e) => atualizarEpico(epico.id, 'resultadoEsperado', e.target.value)} className="w-full bg-transparent text-sm outline-none mb-4 placeholder-gray-600" />
+              {/* Subcampos do Épico - Poppins */}
+              <div className="flex items-center gap-3 font-['Poppins']">
+                <span className="text-lg text-gray-300 whitespace-nowrap">Descrição:</span>
+                <input type="text" value={epico.descricao} onChange={(e) => atualizarEpico(epico.id, 'descricao', e.target.value)} className="w-full bg-transparent text-lg outline-none text-gray-200 pb-1" />
+              </div>
+              <div className="flex items-center gap-3 font-['Poppins']">
+                <span className="text-lg text-gray-300 whitespace-nowrap">Objetivo:</span>
+                <input type="text" value={epico.objetivo} onChange={(e) => atualizarEpico(epico.id, 'objetivo', e.target.value)} className="w-full bg-transparent text-lg outline-none text-gray-200 pb-1" />
+              </div>
+              <div className="flex items-center gap-3 font-['Poppins'] mb-6">
+                <span className="text-lg text-gray-300 whitespace-nowrap">Resultado esperado:</span>
+                <input type="text" value={epico.resultadoEsperado} onChange={(e) => atualizarEpico(epico.id, 'resultadoEsperado', e.target.value)} className="w-full bg-transparent text-lg outline-none text-gray-200 pb-1" />
+              </div>
 
-              {/* Features */}
-              <div className="border-l-2 border-[#444] pl-6 space-y-6">
+              {/* Nível 2: Features */}
+              <div className="border-l-2 border-[#444] pl-6 space-y-8">
                 {epico.features.map((feature, iF) => (
-                  <div key={feature.id} className="space-y-3">
+                  <div key={feature.id} className="space-y-4">
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-200 font-medium whitespace-nowrap">{iE + 1}.{iF + 1}.0</span>
+                    {/* Título da Feature - Outfit */}
+                    <div className="flex items-center gap-3">
+                      <span className="text-gray-200 font-semibold text-xl font-medium whitespace-nowrap font-['Outfit']">{iE + 1}.{iF + 1}.0  Feature:</span>
                       <input
                         type="text"
-                        placeholder="Nome da Feature"
-                        className="w-full bg-transparent text-gray-200 font-medium outline-none placeholder-gray-600"
+                        className="w-full bg-transparent text-gray-200 text-xl font-medium outline-none pb-1 font-['Outfit']"
                         value={feature.nome}
                         onChange={(e) => atualizarFeature(epico.id, feature.id, 'nome', e.target.value)}
                       />
                     </div>
 
-                    <input type="text" placeholder="Descrição" value={feature.descricao} onChange={(e) => atualizarFeature(epico.id, feature.id, 'descricao', e.target.value)} className="w-full bg-transparent text-sm outline-none placeholder-gray-600" />
-                    <input type="text" placeholder="Critérios de aprovação" value={feature.criteriosAprovacao} onChange={(e) => atualizarFeature(epico.id, feature.id, 'criteriosAprovacao', e.target.value)} className="w-full bg-transparent text-sm outline-none mb-4 placeholder-gray-600" />
+                    {/* Subcampos da Feature - Poppins */}
+                    <div className="flex items-center gap-3 font-['Poppins']">
+                      <span className="text-lg text-gray-300 whitespace-nowrap">Descrição:</span>
+                      <input type="text" value={feature.descricao} onChange={(e) => atualizarFeature(epico.id, feature.id, 'descricao', e.target.value)} className="w-full bg-transparent text-lg outline-none text-gray-200 pb-1" />
+                    </div>
+                    <div className="flex items-center gap-3 font-['Poppins'] mb-6">
+                      <span className="text-lg text-gray-300 whitespace-nowrap">Critérios de aprovação:</span>
+                      <input type="text" value={feature.criteriosAprovacao} onChange={(e) => atualizarFeature(epico.id, feature.id, 'criteriosAprovacao', e.target.value)} className="w-full bg-transparent text-lg outline-none text-gray-200 pb-1" />
+                    </div>
 
-                    {/* PBIs */}
+                    {/* Nível 3: PBIs */}
                     <div className="border-l-2 border-[#555] pl-6 space-y-4">
                       {feature.pbis.map((pbi, iP) => (
-                        <div key={pbi.id} className="space-y-2 bg-[#252525] p-4 rounded-lg">
+                        <div key={pbi.id} className="space-y-4 bg-[#252525] p-5 rounded-lg">
 
-
-                          <div className="flex items-center gap-2">
-                            <span className="text-white text-sm font-medium whitespace-nowrap">{iE + 1}.{iF + 1}.{iP + 1}</span>
+                          {/* Título do PBI - Outfit */}
+                          <div className="flex items-center gap-3">
+                            <span className="text-white font-semibold text-lg font-medium whitespace-nowrap font-['Outfit']">{iE + 1}.{iF + 1}.{iP + 1}  PBI:</span>
                             <input
                               type="text"
-                              placeholder="Título do PBI"
-                              className="w-full bg-transparent text-white text-sm font-medium outline-none placeholder-gray-500"
+                              className="w-full bg-transparent text-white text-lg font-medium outline-none pb-1 font-['Outfit']"
                               value={pbi.titulo}
                               onChange={(e) => atualizarPBI(epico.id, feature.id, pbi.id, 'titulo', e.target.value)}
                             />
                           </div>
 
-                          <input type="text" placeholder="User Story" value={pbi.userStory} onChange={(e) => atualizarPBI(epico.id, feature.id, pbi.id, 'userStory', e.target.value)} className="w-full bg-transparent text-sm outline-none placeholder-gray-500" />
-                          <input type="text" placeholder="Critérios de aprovação" value={pbi.criteriosAprovacao} onChange={(e) => atualizarPBI(epico.id, feature.id, pbi.id, 'criteriosAprovacao', e.target.value)} className="w-full bg-transparent text-sm outline-none placeholder-gray-500" />
+                          {/* Subcampos do PBI - Poppins */}
+                          <div className="flex items-center gap-3 font-['Poppins']">
+                            <span className="text-lg text-gray-300 whitespace-nowrap">User Story:</span>
+                            <input type="text" value={pbi.userStory} onChange={(e) => atualizarPBI(epico.id, feature.id, pbi.id, 'userStory', e.target.value)} className="w-full bg-transparent text-lg outline-none text-gray-200 pb-1" />
+                          </div>
+                          <div className="flex items-center gap-3 font-['Poppins']">
+                            <span className="text-lg text-gray-300 whitespace-nowrap">Critérios de aprovação:</span>
+                            <input type="text" value={pbi.criteriosAprovacao} onChange={(e) => atualizarPBI(epico.id, feature.id, pbi.id, 'criteriosAprovacao', e.target.value)} className="w-full bg-transparent text-lg outline-none text-gray-200 pb-1" />
+                          </div>
 
-                          <div className="pt-2">
-                            <span className="text-xs mb-1 block">Desenvolvedores</span>
-                            <select multiple className="w-full bg-[#1c1c1c] text-sm p-2 rounded outline-none border border-gray-700">
+                          <div className="pt-2 font-['Poppins']">
+                            <span className="text-base mb-1 block text-gray-300">Desenvolvedores vinculados:</span>
+                            <select multiple className="w-full bg-[#1c1c1c] text-lg p-2 rounded outline-none border border-gray-700 text-gray-200">
                               {devsDisponiveis.map(dev => (
                                 <option key={dev.id} value={dev.id}>{dev.nome}</option>
                               ))}
@@ -207,25 +250,25 @@ export default function CadastroProjeto() {
                           </div>
                         </div>
                       ))}
-                      <button onClick={() => adicionarPBI(epico.id, feature.id)} className="text-xs text-gray-500 hover:text-white mt-2 block">Novo PBI</button>
+                      <button onClick={() => adicionarPBI(epico.id, feature.id)} className="text-base text-[#ff5722] hover:text-orange-400 mt-2 block font-['Poppins']">+ Novo PBI</button>
                     </div>
                   </div>
                 ))}
-                <button onClick={() => adicionarFeature(epico.id)} className="text-xs text-gray-500 hover:text-white mt-2 block">Nova Feature</button>
+                <button onClick={() => adicionarFeature(epico.id)} className="text-base text-[#ff5722] hover:text-orange-400 mt-2 block font-['Poppins']">+ Nova Feature</button>
               </div>
             </div>
           ))}
-          <button onClick={adicionarEpico} className="text-sm text-gray-500 hover:text-white mt-4 block">Novo Épico</button>
+          <button onClick={adicionarEpico} className="text-lg text-[#ff5722] hover:text-orange-400 mt-4 block font-['Poppins']">+ Novo Épico</button>
         </div>
 
         {/* Rodapé*/}
-        <div className="mt-12 flex items-center gap-6">
-          <button className="text-sm hover:text-white transition-colors">Analisar projeto</button>
-          <button onClick={handleSalvar} className="bg-[#111] hover:bg-black text-white px-6 py-2 rounded text-sm transition-colors border border-[#333]">Salvar</button>
+        <div className="mt-12 flex items-center gap-6 font-['Poppins']">
+          <button className="text-lg hover:text-white transition-colors">Analisar projeto</button>
+          <button className="bg-[#111] hover:bg-black text-white px-8 py-3 rounded text-lg transition-colors border border-[#333]">Salvar</button>
         </div>
       </div>
 
-      {/* CHAT */}
+      {/* CHAT LADO DIREITO */}
       <div className={`bg-[#141414] border-l border-[#222] flex flex-col relative transition-all duration-300 ${chatAberto ? 'w-[400px] p-6' : 'w-[80px] p-4 items-center'}`}>
 
         <div onClick={() => setChatAberto(!chatAberto)} className="absolute top-6 right-6 opacity-50 hover:opacity-100 cursor-pointer z-10 transition-opacity p-2">
@@ -249,17 +292,17 @@ export default function CadastroProjeto() {
               <div className="w-64 h-12 bg-[#333] rounded-xl self-end"></div>
             </div>
 
-            <div className="mt-6 relative">
+            <div className="mt-6 relative font-['Poppins']">
               <input
                 type="text"
                 placeholder="Digite uma mensagem."
-                className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-3 px-4 text-sm text-white outline-none focus:border-gray-500 transition-colors"
+                className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg py-4 px-5 text-lg text-white outline-none focus:border-gray-500 transition-colors"
               />
-              <button className="absolute right-3 top-3 text-gray-500 hover:text-white">↑</button>
+              <button className="absolute right-4 top-4 text-gray-500 hover:text-white">↑</button>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center writing-vertical text-gray-600 font-bold tracking-[0.3em] text-xs transform -rotate-90 mt-10">
+          <div className="flex-1 flex items-center justify-center writing-vertical text-gray-600 font-bold tracking-[0.3em] text-base transform -rotate-90 mt-10 font-['Outfit']">
             CHAT
           </div>
         )}
