@@ -48,7 +48,6 @@ function Galeria() {
         }
 
         const data: Projeto[] = await response.json();
-
         setProjetos(data);
       } catch (error) {
         console.error("Erro ao carregar projetos:", error);
@@ -80,7 +79,6 @@ function Galeria() {
         }
 
         const data: Desenvolvedor[] = await response.json();
-
         setDesenvolvedores(data);
       } catch (error) {
         console.error("Erro ao carregar desenvolvedores:", error);
@@ -96,9 +94,10 @@ function Galeria() {
   return (
     <main className="min-h-screen bg-[#151919] text-white">
       <section className="relative min-h-screen overflow-hidden bg-[#151919]">
-        {/* =========================
+
+        {/* =====================================================
             ABAS
-        ========================== */}
+        ====================================================== */}
 
         <nav
           className="
@@ -108,7 +107,7 @@ function Galeria() {
             flex
             -translate-x-1/2
             items-center
-            rounded-[9px]
+            rounded-[10px]
             border
             border-[#292d2d]
             bg-[#151919]
@@ -120,16 +119,16 @@ function Galeria() {
             type="button"
             onClick={() => setAbaAtiva("conversa")}
             className={`
-              h-[30px]
-              rounded-[8px]
-              px-[13px]
-              text-[12px]
+              h-[40px]
+              rounded-[9px]
+              px-[20px]
+              text-[15px]
               font-normal
               transition-colors
               ${
                 abaAtiva === "conversa"
                   ? "bg-[#292929] text-[#ff641f]"
-                  : "text-[#414545] hover:text-[#777777]"
+                  : "text-[#5a5f5f] hover:text-[#8a8f8f]"
               }
             `}
           >
@@ -142,15 +141,15 @@ function Galeria() {
             type="button"
             onClick={() => setAbaAtiva("desenvolvedores")}
             className={`
-              h-[30px]
-              px-[13px]
-              text-[12px]
+              h-[40px]
+              px-[20px]
+              text-[15px]
               font-normal
               transition-colors
               ${
                 abaAtiva === "desenvolvedores"
                   ? "bg-[#292929] text-[#ff641f]"
-                  : "text-[#414545] hover:text-[#777777]"
+                  : "text-[#5a5f5f] hover:text-[#8a8f8f]"
               }
             `}
           >
@@ -163,16 +162,16 @@ function Galeria() {
             type="button"
             onClick={() => setAbaAtiva("projetos")}
             className={`
-              h-[30px]
-              rounded-[8px]
-              px-[14px]
-              text-[12px]
+              h-[40px]
+              rounded-[9px]
+              px-[21px]
+              text-[15px]
               font-normal
               transition-colors
               ${
                 abaAtiva === "projetos"
                   ? "bg-[#292929] text-[#ff641f]"
-                  : "text-[#414545] hover:text-[#777777]"
+                  : "text-[#5a5f5f] hover:text-[#8a8f8f]"
               }
             `}
           >
@@ -180,29 +179,30 @@ function Galeria() {
           </button>
         </nav>
 
-        {/* =========================
+        {/* =====================================================
             CONTEÚDO
-        ========================== */}
+        ====================================================== */}
 
         <div className="absolute left-[7.5%] right-[7.5%] top-[61%]">
-          {/* =========================
+
+          {/* ===================================================
               PROJETOS
-          ========================== */}
+          ==================================================== */}
 
           {abaAtiva === "projetos" && (
             <section>
-              <h2 className="mb-[25px] text-[13px] font-normal text-[#505555]">
+              <h2 className="mb-[30px] text-[15px] font-normal text-[#505555]">
                 Novo projeto
               </h2>
 
               {carregandoProjetos && (
-                <p className="text-[10px] text-[#505555]">
+                <p className="text-[12px] text-[#505555]">
                   Carregando projetos...
                 </p>
               )}
 
               {erroProjetos && (
-                <p className="text-[10px] text-[#ff641f]">
+                <p className="text-[12px] text-[#ff641f]">
                   Não foi possível carregar os projetos.
                 </p>
               )}
@@ -210,12 +210,12 @@ function Galeria() {
               {!carregandoProjetos &&
                 !erroProjetos &&
                 projetos.length === 0 && (
-                  <p className="text-[10px] text-[#505555]">
+                  <p className="text-[12px] text-[#505555]">
                     Nenhum projeto encontrado.
                   </p>
                 )}
 
-              <div className="flex flex-wrap gap-[50px]">
+              <div className="flex flex-wrap gap-[34px]">
                 {projetos.map((projeto) => (
                   <ProjetoCard
                     key={projeto.id}
@@ -226,24 +226,24 @@ function Galeria() {
             </section>
           )}
 
-          {/* =========================
+          {/* ===================================================
               DESENVOLVEDORES
-          ========================== */}
+          ==================================================== */}
 
           {abaAtiva === "desenvolvedores" && (
             <section>
-              <h2 className="mb-[25px] text-[13px] font-normal text-[#505555]">
+              <h2 className="mb-[30px] text-[15px] font-normal text-[#505555]">
                 Novo projeto
               </h2>
 
               {carregandoDesenvolvedores && (
-                <p className="text-[10px] text-[#505555]">
+                <p className="text-[12px] text-[#505555]">
                   Carregando desenvolvedores...
                 </p>
               )}
 
               {erroDesenvolvedores && (
-                <p className="text-[10px] text-[#ff641f]">
+                <p className="text-[12px] text-[#ff641f]">
                   Não foi possível carregar os desenvolvedores.
                 </p>
               )}
@@ -251,12 +251,12 @@ function Galeria() {
               {!carregandoDesenvolvedores &&
                 !erroDesenvolvedores &&
                 desenvolvedores.length === 0 && (
-                  <p className="text-[10px] text-[#505555]">
+                  <p className="text-[12px] text-[#505555]">
                     Nenhum desenvolvedor encontrado.
                   </p>
                 )}
 
-              <div className="flex flex-wrap gap-[50px]">
+              <div className="flex flex-wrap gap-[34px]">
                 {desenvolvedores.map((desenvolvedor) => (
                   <DesenvolvedorCard
                     key={desenvolvedor.id}
@@ -267,18 +267,18 @@ function Galeria() {
             </section>
           )}
 
-          {/* =========================
+          {/* ===================================================
               CONVERSA
-          ========================== */}
+          ==================================================== */}
 
           {abaAtiva === "conversa" && (
             <section>
-              <h2 className="mb-[25px] text-[13px] font-normal text-[#505555]">
+              <h2 className="mb-[30px] text-[15px] font-normal text-[#505555]">
                 Novo projeto
               </h2>
 
-              <div className="flex min-h-[100px] items-center justify-center">
-                <p className="text-[13px] text-[#414545]">
+              <div className="flex min-h-[120px] items-center justify-center">
+                <p className="text-[14px] text-[#414545]">
                   Área de conversa
                 </p>
               </div>
@@ -300,17 +300,18 @@ interface ProjetoCardProps {
 
 function ProjetoCard({ projeto }: ProjetoCardProps) {
   return (
-    <article className="relative h-[60px] w-[106px]">
-      {/* Corpo */}
+    <article className="relative h-[88px] w-[160px]">
+
+      {/* Corpo principal */}
 
       <div
         className="
           absolute
           bottom-0
           left-0
-          h-[51px]
-          w-[106px]
-          rounded-[11px]
+          h-[75px]
+          w-[160px]
+          rounded-[14px]
           bg-[#2b2b2b]
         "
       />
@@ -322,23 +323,23 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
           absolute
           left-0
           top-0
-          h-[27px]
-          w-[87px]
-          rounded-t-[11px]
+          h-[40px]
+          w-[131px]
+          rounded-t-[14px]
           bg-[#2b2b2b]
         "
       />
 
-      {/* Recorte */}
+      {/* Recorte superior direito */}
 
       <div
         className="
           absolute
           right-0
-          top-[10px]
-          h-[18px]
-          w-[19px]
-          rounded-bl-[10px]
+          top-[14px]
+          h-[26px]
+          w-[29px]
+          rounded-bl-[14px]
           bg-[#151919]
         "
       />
@@ -348,35 +349,40 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
       <span
         className="
           absolute
-          right-[5px]
-          top-[4px]
-          h-[7px]
-          w-[7px]
+          right-[6px]
+          top-[5px]
+          h-[18px]
+          w-[18px]
         "
       >
+        {/* ponta */}
+
         <span
           className="
             absolute
             right-0
             top-0
-            h-[5px]
-            w-[5px]
-            border-r-[1px]
-            border-t-[1px]
-            border-black
+            h-[9px]
+            w-[9px]
+            border-r-[2px]
+            border-t-[2px]
+            border-white
           "
         />
+
+        {/* haste */}
 
         <span
           className="
             absolute
-            bottom-[1px]
-            left-0
-            h-[1px]
-            w-[8px]
+            bottom-[2px]
+            left-[1px]
+            h-[2px]
+            w-[15px]
             rotate-[-45deg]
             origin-left
-            bg-black
+            rounded-full
+            bg-white
           "
         />
       </span>
@@ -386,11 +392,11 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
       <span
         className="
           absolute
-          left-[11px]
-          top-[14px]
-          max-w-[65px]
+          left-[15px]
+          top-[19px]
+          max-w-[102px]
           truncate
-          text-[10px]
+          text-[14px]
           font-normal
           text-white
         "
@@ -403,9 +409,9 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
       <span
         className="
           absolute
-          bottom-[7px]
-          left-[11px]
-          text-[7px]
+          bottom-[10px]
+          left-[15px]
+          text-[11px]
           font-normal
           text-[#d6d6d6]
         "
@@ -428,17 +434,18 @@ function DesenvolvedorCard({
   desenvolvedor,
 }: DesenvolvedorCardProps) {
   return (
-    <article className="relative h-[60px] w-[106px]">
-      {/* Corpo */}
+    <article className="relative h-[88px] w-[160px]">
+
+      {/* Corpo principal */}
 
       <div
         className="
           absolute
           bottom-0
           left-0
-          h-[80px]
-          w-[150px]
-          rounded-[11px]
+          h-[75px]
+          w-[160px]
+          rounded-[14px]
           bg-[#2b2b2b]
         "
       />
@@ -450,23 +457,23 @@ function DesenvolvedorCard({
           absolute
           left-0
           top-0
-          h-[27px]
-          w-[87px]
-          rounded-t-[11px]
+          h-[40px]
+          w-[131px]
+          rounded-t-[14px]
           bg-[#2b2b2b]
         "
       />
 
-      {/* Recorte */}
+      {/* Recorte superior direito */}
 
       <div
         className="
           absolute
           right-0
-          top-[10px]
-          h-[18px]
-          w-[19px]
-          rounded-bl-[10px]
+          top-[14px]
+          h-[26px]
+          w-[29px]
+          rounded-bl-[14px]
           bg-[#151919]
         "
       />
@@ -476,35 +483,40 @@ function DesenvolvedorCard({
       <span
         className="
           absolute
-          right-[5px]
-          top-[4px]
-          h-[7px]
-          w-[7px]
+          right-[6px]
+          top-[5px]
+          h-[18px]
+          w-[18px]
         "
       >
+        {/* ponta */}
+
         <span
           className="
             absolute
             right-0
             top-0
-            h-[5px]
-            w-[5px]
-            border-r-[1px]
-            border-t-[1px]
-            border-black
+            h-[9px]
+            w-[9px]
+            border-r-[2px]
+            border-t-[2px]
+            border-white
           "
         />
+
+        {/* haste */}
 
         <span
           className="
             absolute
-            bottom-[1px]
-            left-0
-            h-[1px]
-            w-[8px]
+            bottom-[2px]
+            left-[1px]
+            h-[2px]
+            w-[15px]
             rotate-[-45deg]
             origin-left
-            bg-black
+            rounded-full
+            bg-white
           "
         />
       </span>
@@ -514,11 +526,11 @@ function DesenvolvedorCard({
       <span
         className="
           absolute
-          left-[11px]
-          top-[14px]
-          max-w-[65px]
+          left-[15px]
+          top-[19px]
+          max-w-[102px]
           truncate
-          text-[10px]
+          text-[14px]
           font-normal
           text-white
         "
@@ -531,9 +543,9 @@ function DesenvolvedorCard({
       <span
         className="
           absolute
-          bottom-[7px]
-          left-[11px]
-          text-[7px]
+          bottom-[10px]
+          left-[15px]
+          text-[11px]
           font-normal
           text-[#d6d6d6]
         "

@@ -130,7 +130,7 @@ export default function CadastroProjeto() {
     }
   };
 
-  // --- RENDERIZAÇÃO ---
+  // --- RENDERIZAÇÃO ---q
   return (
     <div className="flex h-screen bg-[#1c1c1c] text-[#a0a0a0]">
 
