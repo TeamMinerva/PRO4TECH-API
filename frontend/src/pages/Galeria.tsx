@@ -1,63 +1,105 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Aba = "conversa" | "desenvolvedores" | "projetos";
 
 interface Projeto {
   id: number;
-  nome: string;
+  name: string;
   status: string;
 }
 
 interface Desenvolvedor {
   id: number;
-  nome: string;
+  name: string;
+  active: boolean;
 }
-
-// Dados temporários apenas para visualização.
-// Depois vamos substituir pelos dados da API.
-const projetosMock: Projeto[] = [
-  {
-    id: 1,
-    nome: "Nome",
-    status: "Em andamento",
-  },
-  {
-    id: 2,
-    nome: "Nome",
-    status: "Em andamento",
-  },
-  {
-    id: 3,
-    nome: "Nome",
-    status: "Em andamento",
-  },
-];
-
-const desenvolvedoresMock: Desenvolvedor[] = [
-  {
-    id: 1,
-    nome: "Nome",
-  },
-  {
-    id: 2,
-    nome: "Nome",
-  },
-  {
-    id: 3,
-    nome: "Nome",
-  },
-];
 
 function Galeria() {
   const [abaAtiva, setAbaAtiva] = useState<Aba>("projetos");
 
+  const [projetos, setProjetos] = useState<Projeto[]>([]);
+  const [desenvolvedores, setDesenvolvedores] = useState<Desenvolvedor[]>(
+    []
+  );
+
+  const [carregandoProjetos, setCarregandoProjetos] = useState(true);
+  const [carregandoDesenvolvedores, setCarregandoDesenvolvedores] =
+    useState(true);
+
+  const [erroProjetos, setErroProjetos] = useState(false);
+  const [erroDesenvolvedores, setErroDesenvolvedores] = useState(false);
+
+  /* =========================================================
+     BUSCAR PROJETOS
+  ========================================================== */
+
+  useEffect(() => {
+    async function carregarProjetos() {
+      try {
+        setCarregandoProjetos(true);
+        setErroProjetos(false);
+
+        const response = await fetch(
+          "http://localhost:3000/api/projects-gallery"
+        );
+
+        if (!response.ok) {
+          throw new Error("Erro ao buscar projetos.");
+        }
+
+        const data: Projeto[] = await response.json();
+
+        setProjetos(data);
+      } catch (error) {
+        console.error("Erro ao carregar projetos:", error);
+        setErroProjetos(true);
+      } finally {
+        setCarregandoProjetos(false);
+      }
+    }
+
+    carregarProjetos();
+  }, []);
+
+  /* =========================================================
+     BUSCAR DESENVOLVEDORES
+  ========================================================== */
+
+  useEffect(() => {
+    async function carregarDesenvolvedores() {
+      try {
+        setCarregandoDesenvolvedores(true);
+        setErroDesenvolvedores(false);
+
+        const response = await fetch(
+          "http://localhost:3000/api/developers-gallery"
+        );
+
+        if (!response.ok) {
+          throw new Error("Erro ao buscar desenvolvedores.");
+        }
+
+        const data: Desenvolvedor[] = await response.json();
+
+        setDesenvolvedores(data);
+      } catch (error) {
+        console.error("Erro ao carregar desenvolvedores:", error);
+        setErroDesenvolvedores(true);
+      } finally {
+        setCarregandoDesenvolvedores(false);
+      }
+    }
+
+    carregarDesenvolvedores();
+  }, []);
+
   return (
     <main className="min-h-screen bg-[#151919] text-white">
-      {/* Área principal da galeria */}
       <section className="relative min-h-screen overflow-hidden bg-[#151919]">
         {/* =========================
             ABAS
         ========================== */}
+
         <nav
           className="
             absolute
@@ -72,9 +114,8 @@ function Galeria() {
             bg-[#151919]
           "
         >
-          {/* =========================
-              CONVERSA
-          ========================== */}
+          {/* CONVERSA */}
+
           <button
             type="button"
             onClick={() => setAbaAtiva("conversa")}
@@ -95,9 +136,8 @@ function Galeria() {
             Conversa
           </button>
 
-          {/* =========================
-              DESENVOLVEDORES
-          ========================== */}
+          {/* DESENVOLVEDORES */}
+
           <button
             type="button"
             onClick={() => setAbaAtiva("desenvolvedores")}
@@ -117,9 +157,8 @@ function Galeria() {
             Desenvolvedores
           </button>
 
-          {/* =========================
-              PROJETOS
-          ========================== */}
+          {/* PROJETOS */}
+
           <button
             type="button"
             onClick={() => setAbaAtiva("projetos")}
@@ -144,18 +183,40 @@ function Galeria() {
         {/* =========================
             CONTEÚDO
         ========================== */}
+
         <div className="absolute left-[7.5%] right-[7.5%] top-[61%]">
           {/* =========================
               PROJETOS
           ========================== */}
+
           {abaAtiva === "projetos" && (
             <section>
               <h2 className="mb-[25px] text-[13px] font-normal text-[#505555]">
                 Novo projeto
               </h2>
 
+              {carregandoProjetos && (
+                <p className="text-[10px] text-[#505555]">
+                  Carregando projetos...
+                </p>
+              )}
+
+              {erroProjetos && (
+                <p className="text-[10px] text-[#ff641f]">
+                  Não foi possível carregar os projetos.
+                </p>
+              )}
+
+              {!carregandoProjetos &&
+                !erroProjetos &&
+                projetos.length === 0 && (
+                  <p className="text-[10px] text-[#505555]">
+                    Nenhum projeto encontrado.
+                  </p>
+                )}
+
               <div className="flex flex-wrap gap-[50px]">
-                {projetosMock.map((projeto) => (
+                {projetos.map((projeto) => (
                   <ProjetoCard
                     key={projeto.id}
                     projeto={projeto}
@@ -168,14 +229,35 @@ function Galeria() {
           {/* =========================
               DESENVOLVEDORES
           ========================== */}
+
           {abaAtiva === "desenvolvedores" && (
             <section>
               <h2 className="mb-[25px] text-[13px] font-normal text-[#505555]">
                 Novo projeto
               </h2>
 
+              {carregandoDesenvolvedores && (
+                <p className="text-[10px] text-[#505555]">
+                  Carregando desenvolvedores...
+                </p>
+              )}
+
+              {erroDesenvolvedores && (
+                <p className="text-[10px] text-[#ff641f]">
+                  Não foi possível carregar os desenvolvedores.
+                </p>
+              )}
+
+              {!carregandoDesenvolvedores &&
+                !erroDesenvolvedores &&
+                desenvolvedores.length === 0 && (
+                  <p className="text-[10px] text-[#505555]">
+                    Nenhum desenvolvedor encontrado.
+                  </p>
+                )}
+
               <div className="flex flex-wrap gap-[50px]">
-                {desenvolvedoresMock.map((desenvolvedor) => (
+                {desenvolvedores.map((desenvolvedor) => (
                   <DesenvolvedorCard
                     key={desenvolvedor.id}
                     desenvolvedor={desenvolvedor}
@@ -188,6 +270,7 @@ function Galeria() {
           {/* =========================
               CONVERSA
           ========================== */}
+
           {abaAtiva === "conversa" && (
             <section>
               <h2 className="mb-[25px] text-[13px] font-normal text-[#505555]">
@@ -218,7 +301,8 @@ interface ProjetoCardProps {
 function ProjetoCard({ projeto }: ProjetoCardProps) {
   return (
     <article className="relative h-[60px] w-[106px]">
-      {/* Corpo do card */}
+      {/* Corpo */}
+
       <div
         className="
           absolute
@@ -231,7 +315,8 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
         "
       />
 
-      {/* Parte superior do card */}
+      {/* Parte superior */}
+
       <div
         className="
           absolute
@@ -244,7 +329,8 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
         "
       />
 
-      {/* Recorte da seta */}
+      {/* Recorte */}
+
       <div
         className="
           absolute
@@ -257,22 +343,46 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
         "
       />
 
-      {/* Seta preta */}
+      {/* Seta */}
+
       <span
         className="
           absolute
-          right-[4px]
-          top-[2px]
-          text-[11px]
-          font-normal
-          leading-none
-          text-black
+          right-[5px]
+          top-[4px]
+          h-[7px]
+          w-[7px]
         "
       >
-        ↗
+        <span
+          className="
+            absolute
+            right-0
+            top-0
+            h-[5px]
+            w-[5px]
+            border-r-[1px]
+            border-t-[1px]
+            border-black
+          "
+        />
+
+        <span
+          className="
+            absolute
+            bottom-[1px]
+            left-0
+            h-[1px]
+            w-[8px]
+            rotate-[-45deg]
+            origin-left
+            bg-black
+          "
+        />
       </span>
 
       {/* Nome */}
+
       <span
         className="
           absolute
@@ -285,10 +395,11 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
           text-white
         "
       >
-        {projeto.nome}
+        {projeto.name}
       </span>
 
       {/* Status */}
+
       <span
         className="
           absolute
@@ -319,19 +430,21 @@ function DesenvolvedorCard({
   return (
     <article className="relative h-[60px] w-[106px]">
       {/* Corpo */}
+
       <div
         className="
           absolute
           bottom-0
           left-0
-          h-[51px]
-          w-[106px]
+          h-[80px]
+          w-[150px]
           rounded-[11px]
           bg-[#2b2b2b]
         "
       />
 
       {/* Parte superior */}
+
       <div
         className="
           absolute
@@ -344,7 +457,8 @@ function DesenvolvedorCard({
         "
       />
 
-      {/* Recorte da seta */}
+      {/* Recorte */}
+
       <div
         className="
           absolute
@@ -357,22 +471,46 @@ function DesenvolvedorCard({
         "
       />
 
-      {/* Seta preta */}
+      {/* Seta */}
+
       <span
         className="
           absolute
-          right-[4px]
-          top-[2px]
-          text-[11px]
-          font-normal
-          leading-none
-          text-black
+          right-[5px]
+          top-[4px]
+          h-[7px]
+          w-[7px]
         "
       >
-        ↗
+        <span
+          className="
+            absolute
+            right-0
+            top-0
+            h-[5px]
+            w-[5px]
+            border-r-[1px]
+            border-t-[1px]
+            border-black
+          "
+        />
+
+        <span
+          className="
+            absolute
+            bottom-[1px]
+            left-0
+            h-[1px]
+            w-[8px]
+            rotate-[-45deg]
+            origin-left
+            bg-black
+          "
+        />
       </span>
 
       {/* Nome */}
+
       <span
         className="
           absolute
@@ -385,10 +523,11 @@ function DesenvolvedorCard({
           text-white
         "
       >
-        {desenvolvedor.nome}
+        {desenvolvedor.name}
       </span>
 
-      {/* Informação secundária */}
+      {/* Status */}
+
       <span
         className="
           absolute
@@ -399,7 +538,7 @@ function DesenvolvedorCard({
           text-[#d6d6d6]
         "
       >
-        Desenvolvedor
+        {desenvolvedor.active ? "Ativo" : "Inativo"}
       </span>
     </article>
   );
