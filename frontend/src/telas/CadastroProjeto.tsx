@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // --- TIPAGENS ---
 
@@ -46,13 +46,29 @@ const projetoInicial: Projeto = {
   epicos: []
 };
 
+const TECNOLOGIAS_DISPONIVEIS = [
+  "React", "Node.js", "TypeScript", "JavaScript", "Python",
+  "Java", "C#", "Go", "Docker", "PostgreSQL", "MySQL",
+  "MongoDB", "Tailwind CSS", "Next.js", "Express", "Prisma", "Git"
+];
+
+const STATUS_OPCOES = [
+  { valor: 'PLANNED', label: 'Planejado' },
+  { valor: 'IN_PROGRESS', label: 'Em andamento' },
+  { valor: 'DONE', label: 'Concluído' },
+];
+
 // --- COMPONENTE PRINCIPAL ---
 
 export default function CadastroProjeto() {
   const [projeto, setProjeto] = useState<Projeto>(projetoInicial);
 
   const [chatAberto, setChatAberto] = useState(true);
-  const [tecnologiasTexto, setTecnologiasTexto] = useState('');
+  const [statusAberto, setStatusAberto] = useState(false);
+  const [techAberto, setTechAberto] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+  const techDropdownRef = useRef<HTMLDivElement>(null);
+
   const [feedback, setFeedback] = useState<{
     tipo: 'sucesso' | 'erro';
     mensagem: string;
@@ -60,6 +76,28 @@ export default function CadastroProjeto() {
   } | null>(null);
 
   const [devsDisponiveis, setDevsDisponiveis] = useState<Desenvolvedor[]>([]);
+
+  useEffect(() => {
+    function handleClickFora(event: MouseEvent) {
+      if (
+        statusDropdownRef.current &&
+        !statusDropdownRef.current.contains(event.target as Node)
+      ) {
+        setStatusAberto(false);
+      }
+      if (
+        techDropdownRef.current &&
+        !techDropdownRef.current.contains(event.target as Node)
+      ) {
+        setTechAberto(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickFora);
+    return () => {
+      document.removeEventListener('mousedown', handleClickFora);
+    };
+  }, []);
 
   useEffect(() => {
     async function carregarDesenvolvedores() {
@@ -140,6 +178,42 @@ export default function CadastroProjeto() {
               features: e.features.map((f) =>
                 f.id === featureId
                   ? { ...f, pbis: [...f.pbis, novo] }
+                  : f
+              )
+            }
+          : e
+      )
+    }));
+  };
+
+  const removerEpico = (epicoId: string) => {
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.filter((e) => e.id !== epicoId)
+    }));
+  };
+
+  const removerFeature = (epicoId: string, featureId: string) => {
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.map((e) =>
+        e.id === epicoId
+          ? { ...e, features: e.features.filter((f) => f.id !== featureId) }
+          : e
+      )
+    }));
+  };
+
+  const removerPBI = (epicoId: string, featureId: string, pbiId: string) => {
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.map((e) =>
+        e.id === epicoId
+          ? {
+              ...e,
+              features: e.features.map((f) =>
+                f.id === featureId
+                  ? { ...f, pbis: f.pbis.filter((p) => p.id !== pbiId) }
                   : f
               )
             }
@@ -300,7 +374,6 @@ export default function CadastroProjeto() {
 
       if (resposta.ok) {
         setProjeto(projetoInicial);
-        setTecnologiasTexto('');
         setFeedback({ tipo: 'sucesso', mensagem: 'Projeto salvo com sucesso!', campos: [] });
       } else {
         setFeedback({
@@ -341,75 +414,162 @@ export default function CadastroProjeto() {
             }
           />
 
-          <div className="flex flex-col gap-3 text-lg mb-6 border-b border-gray-800 pb-6 font-['Poppins']">
+          <div className="flex flex-col gap-4 text-lg mb-6 border-b border-gray-800 pb-6 font-['Poppins']">
 
             {/* STATUS */}
-            <div className="flex items-center gap-2">
-              <span className="text-gray-300 w-32">
-                Status:
-              </span>
-
-              <select
-                value={projeto.status}
-                onChange={(e) =>
-                  setProjeto({
-                    ...projeto,
-                    status: e.target.value
-                  })
-                }
-                className="bg-transparent outline-none flex-1 text-gray-200"
+            <div className="relative inline-block w-fit" ref={statusDropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusAberto(!statusAberto);
+                  setTechAberto(false);
+                }}
+                className="flex items-center gap-2.5 text-gray-400 hover:text-gray-200 transition-colors cursor-pointer text-lg font-['Poppins'] select-none"
               >
-                <option
-                  value=""
-                  className="bg-[#1c1c1c]"
+                {projeto.status ? (
+                  <span className="flex items-center gap-2">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="text-gray-200 font-medium">
+                      {STATUS_OPCOES.find((o) => o.valor === projeto.status)?.label}
+                    </span>
+                  </span>
+                ) : (
+                  <span>Status</span>
+                )}
+                <svg
+                  className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 ${
+                    statusAberto ? 'rotate-180 text-gray-300' : ''
+                  }`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  Selecione o status
-                </option>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-                <option
-                  value="PLANNED"
-                  className="bg-[#1c1c1c]"
-                >
-                  Planejado
-                </option>
-
-                <option
-                  value="IN_PROGRESS"
-                  className="bg-[#1c1c1c]"
-                >
-                  Em andamento
-                </option>
-
-                <option
-                  value="DONE"
-                  className="bg-[#1c1c1c]"
-                >
-                  Concluído
-                </option>
-              </select>
+              {statusAberto && (
+                <div className="absolute top-full left-0 mt-2 z-50 min-w-[180px] bg-[#1e1e1e] border border-[#333] rounded-lg shadow-2xl py-1.5 font-['Poppins']">
+                  {STATUS_OPCOES.map((opcao) => (
+                    <button
+                      key={opcao.valor}
+                      type="button"
+                      onClick={() => {
+                        setProjeto((prev) => ({ ...prev, status: opcao.valor }));
+                        setStatusAberto(false);
+                      }}
+                      className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between transition-colors ${
+                        projeto.status === opcao.valor
+                          ? 'bg-[#2a2a2a] text-white font-medium'
+                          : 'text-gray-300 hover:bg-[#282828] hover:text-white'
+                      }`}
+                    >
+                      <span>{opcao.label}</span>
+                      {projeto.status === opcao.valor && (
+                        <span className="text-orange-400 text-xs font-bold">✓</span>
+                      )}
+                    </button>
+                  ))}
+                  {projeto.status && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProjeto((prev) => ({ ...prev, status: '' }));
+                        setStatusAberto(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:text-red-400 hover:bg-[#282828] transition-colors border-t border-[#333] mt-1 pt-2"
+                    >
+                      Limpar status
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* TECNOLOGIAS */}
-            <div className="flex items-center gap-2">
-              <span className="text-gray-300 w-32">
-                Tecnologias:
-              </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative inline-block" ref={techDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTechAberto(!techAberto);
+                    setStatusAberto(false);
+                  }}
+                  className="flex items-center gap-2.5 text-gray-400 hover:text-gray-200 transition-colors cursor-pointer text-lg font-['Poppins'] select-none"
+                >
+                  <span>Tecnologias</span>
+                  <svg
+                    className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 ${
+                      techAberto ? 'rotate-180 text-gray-300' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
 
-              <input
-                type="text"
-                value={tecnologiasTexto}
-                onChange={(e) => {
-                  setTecnologiasTexto(e.target.value);
-                  setProjeto({
-                    ...projeto,
-                    tecnologias: e.target.value
-                      .split(',')
-                      .map((t) => t.trim())
-                      .filter((t) => t !== '')
-                  });
-                }}
-                className="bg-transparent outline-none flex-1 text-gray-200"
-              />
+                {techAberto && (
+                  <div className="absolute top-full left-0 mt-2 z-50 min-w-[220px] max-h-64 overflow-y-auto bg-[#1e1e1e] border border-[#333] rounded-lg shadow-2xl py-1.5 font-['Poppins'] scrollbar-thin scrollbar-thumb-gray-700">
+                    {TECNOLOGIAS_DISPONIVEIS.map((tech) => {
+                      const selecionada = projeto.tecnologias.includes(tech);
+                      return (
+                        <button
+                          key={tech}
+                          type="button"
+                          onClick={() => {
+                            if (selecionada) {
+                              setProjeto((prev) => ({
+                                ...prev,
+                                tecnologias: prev.tecnologias.filter((t) => t !== tech),
+                              }));
+                            } else {
+                              setProjeto((prev) => ({
+                                ...prev,
+                                tecnologias: [...prev.tecnologias, tech],
+                              }));
+                            }
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between transition-colors ${
+                            selecionada
+                              ? 'bg-[#2a2a2a] text-white font-medium'
+                              : 'text-gray-300 hover:bg-[#282828] hover:text-white'
+                          }`}
+                        >
+                          <span>{tech}</span>
+                          {selecionada && (
+                            <span className="text-orange-400 text-xs font-bold">✓</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Badges de Tecnologias Selecionadas */}
+              {projeto.tecnologias.map((tech) => (
+                <span
+                  key={tech}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-[#252525] text-gray-200 border border-[#333]"
+                >
+                  {tech}
+                  <button
+                    type="button"
+                    title={`Remover ${tech}`}
+                    onClick={() =>
+                      setProjeto((prev) => ({
+                        ...prev,
+                        tecnologias: prev.tecnologias.filter((t) => t !== tech),
+                      }))
+                    }
+                    className="text-gray-400 hover:text-red-500 font-bold ml-1 transition-colors leading-none cursor-pointer"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
             </div>
 
           </div>
@@ -443,6 +603,15 @@ export default function CadastroProjeto() {
                     )
                   }
                 />
+
+                <button
+                  type="button"
+                  title="Excluir Épico"
+                  onClick={() => removerEpico(epico.id)}
+                  className="text-gray-500 hover:text-red-500 transition-colors p-1 text-xl font-bold ml-2"
+                >
+                  ✕
+                </button>
 
               </div>
 
@@ -544,6 +713,15 @@ export default function CadastroProjeto() {
                         }
                       />
 
+                      <button
+                        type="button"
+                        title="Excluir Feature"
+                        onClick={() => removerFeature(epico.id, feature.id)}
+                        className="text-gray-500 hover:text-red-500 transition-colors p-1 text-lg font-bold ml-2"
+                      >
+                        ✕
+                      </button>
+
                     </div>
 
                     {/* Subcampos da Feature - Poppins */}
@@ -625,6 +803,15 @@ export default function CadastroProjeto() {
                                 )
                               }
                             />
+
+                            <button
+                              type="button"
+                              title="Excluir PBI"
+                              onClick={() => removerPBI(epico.id, feature.id, pbi.id)}
+                              className="text-gray-500 hover:text-red-500 transition-colors p-1 text-base font-bold ml-auto"
+                            >
+                              ✕
+                            </button>
 
                           </div>
 
