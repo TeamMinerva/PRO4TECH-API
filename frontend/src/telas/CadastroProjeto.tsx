@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // --- TIPAGENS ---
 
@@ -39,22 +39,51 @@ export interface Projeto {
   epicos: Epico[];
 }
 
+const projetoInicial: Projeto = {
+  nome: '',
+  status: '',
+  tecnologias: [],
+  epicos: []
+};
+
 // --- COMPONENTE PRINCIPAL ---
 
 export default function CadastroProjeto() {
-  const [projeto, setProjeto] = useState<Projeto>({
-    nome: '',
-    status: '',
-    tecnologias: [],
-    epicos: []
-  });
+  const [projeto, setProjeto] = useState<Projeto>(projetoInicial);
 
   const [chatAberto, setChatAberto] = useState(true);
+  const [tecnologiasTexto, setTecnologiasTexto] = useState('');
+  const [feedback, setFeedback] = useState<{
+    tipo: 'sucesso' | 'erro';
+    mensagem: string;
+    campos: string[];
+  } | null>(null);
 
-  const devsDisponiveis: Desenvolvedor[] = [
-    { id: '1', nome: 'Dev Frontend' },
-    { id: '2', nome: 'Dev Backend' },
-  ];
+  const [devsDisponiveis, setDevsDisponiveis] = useState<Desenvolvedor[]>([]);
+
+  useEffect(() => {
+    async function carregarDesenvolvedores() {
+      try {
+        const resposta = await fetch(
+          'http://localhost:3000/api/developers-gallery?active=true'
+        );
+
+        if (!resposta.ok) {
+          throw new Error('Erro ao buscar desenvolvedores.');
+        }
+
+        const dados: { id: number; name: string }[] = await resposta.json();
+
+        setDevsDisponiveis(
+          dados.map((d) => ({ id: String(d.id), nome: d.name }))
+        );
+      } catch (erro) {
+        console.error('Erro ao carregar desenvolvedores:', erro);
+      }
+    }
+
+    carregarDesenvolvedores();
+  }, []);
 
   // --- FUNÇÕES DE MANIPULAÇÃO DE ESTADO ---
 
@@ -164,7 +193,7 @@ export default function CadastroProjeto() {
     featureId: string,
     pbiId: string,
     campo: keyof PBI,
-    valor: string
+    valor: string | string[]
   ) => {
     setProjeto(prev => ({
       ...prev,
@@ -190,23 +219,99 @@ export default function CadastroProjeto() {
     }));
   };
 
+  const montarPayload = () => ({
+    name: projeto.nome,
+    technologies: projeto.tecnologias,
+    status: projeto.status,
+    epics: projeto.epicos.map((epico) => ({
+      name: epico.nome,
+      description: epico.descricao,
+      objective: epico.objetivo,
+      expectedResult: epico.resultadoEsperado,
+      features: epico.features.map((feature) => ({
+        name: feature.nome,
+        description: feature.descricao,
+        approvalCriteria: feature.criteriosAprovacao,
+        pbis: feature.pbis.map((pbi) => ({
+          title: pbi.titulo,
+          userStory: pbi.userStory,
+          acceptanceCriteria: pbi.criteriosAprovacao,
+          developerIds: pbi.desenvolvedores.map(Number),
+        })),
+      })),
+    })),
+  });
+
+  const validarProjeto = (): string[] => {
+    const faltando: string[] = [];
+    const vazio = (valor: string) => valor.trim() === '';
+
+    if (vazio(projeto.nome)) faltando.push('Nome do projeto');
+    if (projeto.status === '') faltando.push('Status');
+    if (projeto.tecnologias.length === 0) faltando.push('Tecnologias');
+
+    projeto.epicos.forEach((epico, iE) => {
+      const e = `Épico ${iE + 1}`;
+      if (vazio(epico.nome)) faltando.push(`${e}: nome`);
+      if (vazio(epico.descricao)) faltando.push(`${e}: descrição`);
+      if (vazio(epico.objetivo)) faltando.push(`${e}: objetivo`);
+      if (vazio(epico.resultadoEsperado)) faltando.push(`${e}: resultado esperado`);
+
+      epico.features.forEach((feature, iF) => {
+        const f = `${e} > Feature ${iF + 1}`;
+        if (vazio(feature.nome)) faltando.push(`${f}: nome`);
+        if (vazio(feature.descricao)) faltando.push(`${f}: descrição`);
+        if (vazio(feature.criteriosAprovacao)) faltando.push(`${f}: critérios de aprovação`);
+
+        feature.pbis.forEach((pbi, iP) => {
+          const p = `${f} > PBI ${iP + 1}`;
+          if (vazio(pbi.titulo)) faltando.push(`${p}: título`);
+          if (vazio(pbi.userStory)) faltando.push(`${p}: user story`);
+          if (vazio(pbi.criteriosAprovacao)) faltando.push(`${p}: critérios de aceitação`);
+          if (pbi.desenvolvedores.length === 0) faltando.push(`${p}: desenvolvedores`);
+        });
+      });
+    });
+
+    return faltando;
+  };
+
   const handleSalvar = async () => {
+    setFeedback(null);
+
+    const faltando = validarProjeto();
+    if (faltando.length > 0) {
+      setFeedback({
+        tipo: 'erro',
+        mensagem: 'Preencha os campos obrigatórios:',
+        campos: faltando,
+      });
+      return;
+    }
+
     try {
-      console.log("Enviando payload para a API:", projeto);
+      const payload = montarPayload();
+      console.log("Enviando payload para a API:", payload);
       const resposta = await fetch('http://localhost:3000/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(projeto),
+        body: JSON.stringify(payload),
       });
 
       if (resposta.ok) {
-        alert('Projeto salvo com sucesso!');
+        setProjeto(projetoInicial);
+        setTecnologiasTexto('');
+        setFeedback({ tipo: 'sucesso', mensagem: 'Projeto salvo com sucesso!', campos: [] });
       } else {
-        alert('Erro ao salvar o projeto.');
+        setFeedback({
+          tipo: 'erro',
+          mensagem: 'Não foi possível salvar o projeto. Verifique os campos e tente novamente.',
+          campos: [],
+        });
       }
     } catch (erro) {
       console.error('Erro de conexão:', erro);
-      alert('Não foi possível conectar ao servidor.');
+      setFeedback({ tipo: 'erro', mensagem: 'Não foi possível conectar ao servidor.', campos: [] });
     }
   };
 
@@ -292,6 +397,17 @@ export default function CadastroProjeto() {
 
               <input
                 type="text"
+                value={tecnologiasTexto}
+                onChange={(e) => {
+                  setTecnologiasTexto(e.target.value);
+                  setProjeto({
+                    ...projeto,
+                    tecnologias: e.target.value
+                      .split(',')
+                      .map((t) => t.trim())
+                      .filter((t) => t !== '')
+                  });
+                }}
                 className="bg-transparent outline-none flex-1 text-gray-200"
               />
             </div>
@@ -568,6 +684,19 @@ export default function CadastroProjeto() {
 
                             <select
                               multiple
+                              value={pbi.desenvolvedores}
+                              onChange={(e) =>
+                                atualizarPBI(
+                                  epico.id,
+                                  feature.id,
+                                  pbi.id,
+                                  'desenvolvedores',
+                                  Array.from(
+                                    e.target.selectedOptions,
+                                    (opcao) => opcao.value
+                                  )
+                                )
+                              }
                               className="w-full bg-[#1c1c1c] text-lg p-2 rounded outline-none border border-gray-700 text-gray-200"
                             >
                               {devsDisponiveis.map(dev => (
@@ -644,6 +773,27 @@ export default function CadastroProjeto() {
           </button>
 
         </div>
+
+        {feedback && (
+          <div
+            role="alert"
+            className={`mt-4 rounded border px-4 py-3 font-['Poppins'] ${
+              feedback.tipo === 'sucesso'
+                ? 'border-green-700 bg-green-900/30 text-green-300'
+                : 'border-red-700 bg-red-900/30 text-red-300'
+            }`}
+          >
+            <p>{feedback.mensagem}</p>
+
+            {feedback.campos.length > 0 && (
+              <ul className="mt-2 list-disc pl-5 text-base">
+                {feedback.campos.map((campo) => (
+                  <li key={campo}>{campo}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
       </div>
 
