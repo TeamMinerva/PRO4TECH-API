@@ -8,10 +8,14 @@ export const createDeveloperSchema = z.object({
     .max(120, "O nome deve ter no máximo 120 caracteres."),
 
   skills: z
-    .string('O campo "skills" é obrigatório.')
-    .trim()
-    .min(1, "Informe ao menos uma competência técnica.")
-    .max(500, 'O campo "skills" deve ter no máximo 500 caracteres.'),
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1, "A competência não pode estar vazia.")
+        .max(100, "Cada competência deve ter no máximo 100 caracteres.")
+    )
+    .min(1, "Informe ao menos uma competência técnica."),
 
   active: z.boolean().optional(),
 });
