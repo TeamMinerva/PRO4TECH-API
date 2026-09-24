@@ -25,9 +25,9 @@ interface CreateEpicData {
 
 interface CreateProjectData {
     name: string;
-    technologies: string;
+    technologies: string[];
     status: 'PLANNED' | 'IN_PROGRESS' | 'DONE';
-    epics: CreateEpicData[]
+    epics: CreateEpicData[];
 }
 
 export async function createProject(data: CreateProjectData) {

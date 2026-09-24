@@ -2,7 +2,7 @@ import { prisma } from "../lib/prisma";
 
 interface CreateDeveloperData {
   name: string;
-  skills: string;
+  skills: string[];
   active?: boolean;
 }
 

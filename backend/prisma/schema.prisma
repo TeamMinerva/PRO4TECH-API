@@ -18,7 +18,7 @@ model User {
 model Developer {
     id           Int      @id @default(autoincrement())
     name         String
-    skills       String
+    skills       String[]
     active       Boolean  @default(true)
     createdAt    DateTime @default(now())
     updatedAt    DateTime @updatedAt
@@ -34,7 +34,7 @@ enum ProjectStatus {
 model Project {
     id           Int           @id @default(autoincrement())
     name         String
-    technologies String
+    technologies String[]
     status       ProjectStatus @default(PLANNED)
     epics        Epic[]
     createdAt    DateTime      @default(now())
