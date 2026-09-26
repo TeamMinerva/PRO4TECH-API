@@ -1,10 +1,11 @@
-import { useEffect, useState, type  FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import {
+  getDevelopersGallery,
+  createDeveloper,
+  type Developer,
+} from "../services/developerService";
 
-interface Desenvolvedor {
-  id: number;
-  name: string;
-  active: boolean;
-}
+type Desenvolvedor = Developer;
 
 type Status = "carregando" | "erro" | "sucesso";
 
@@ -16,11 +17,8 @@ function GaleriaDesenvolvedor() {
   async function carregarDesenvolvedores() {
     try {
       setStatus("carregando");
-
-      const response = await fetch("http://localhost:3000/api/developers-gallery");
-      if (!response.ok) throw new Error("Erro ao buscar desenvolvedores.");
-
-      setDesenvolvedores(await response.json());
+      const data = await getDevelopersGallery();
+      setDesenvolvedores(data);
       setStatus("sucesso");
     } catch (error) {
       console.error("Erro ao carregar desenvolvedores:", error);
@@ -29,7 +27,25 @@ function GaleriaDesenvolvedor() {
   }
 
   useEffect(() => {
-    carregarDesenvolvedores();
+    let ativo = true;
+
+    getDevelopersGallery()
+      .then((data) => {
+        if (ativo) {
+          setDesenvolvedores(data);
+          setStatus("sucesso");
+        }
+      })
+      .catch((error) => {
+        if (ativo) {
+          console.error("Erro ao carregar desenvolvedores:", error);
+          setStatus("erro");
+        }
+      });
+
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   return (
@@ -134,25 +150,38 @@ function ModalCadastroDesenvolvedor({
       return;
     }
 
+    const skillsArray = competencias
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    if (skillsArray.length === 0) {
+      setErro("Informe ao menos uma competência técnica.");
+      return;
+    }
+
     setEnviando(true);
 
     try {
-      const response = await fetch("http://localhost:3000/api/developers-gallery", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: nome,
-          active: ativo,
-          skills: competencias,
-        }),
+      await createDeveloper({
+        name: nome,
+        active: ativo,
+        skills: skillsArray,
       });
 
-      if (!response.ok) throw new Error("Erro ao cadastrar desenvolvedor.");
+      setNome("");
+      setAtivo(null);
+      setCompetencias("");
+      setErro(null);
 
       onCadastrado();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Erro ao cadastrar desenvolvedor:", error);
-      setErro("Não foi possível cadastrar o desenvolvedor.");
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível cadastrar o desenvolvedor.";
+      setErro(message);
     } finally {
       setEnviando(false);
     }
