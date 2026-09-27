@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { IdCard, X } from "lucide-react";
 import {
   getDevelopersGallery,
   createDeveloper,
@@ -93,36 +94,38 @@ function GaleriaDesenvolvedor() {
 function DesenvolvedorCard({ desenvolvedor }: { desenvolvedor: Desenvolvedor }) {
   return (
     <article
-      className="relative h-[128px] w-[239px] rounded-[18px] bg-[#141617] px-[24px] pt-[22px] pb-[16px] flex flex-col justify-between transition-colors hover:bg-[#1c1e1f]"
+      className="group flex w-[260px] items-center gap-[12px] rounded-[12px] bg-[#141617] px-[16px] py-[12px] transition-colors hover:bg-[#1c1e1f]"
       data-node-id="248:85"
     >
-      <i
-        className="fi fi-br-folder absolute left-[24px] top-[22px] text-[22px] text-[#ed6a32]"
-        aria-hidden="true"
-      />
+      <div className="flex min-w-0 flex-1 flex-col gap-[4px]">
+        <span
+          className="truncate text-[18px] font-normal text-white"
+          style={{ fontFamily: "Outfit, sans-serif" }}
+        >
+          {desenvolvedor.name}
+        </span>
 
-      <i
-        className="fi fi-br-arrow-up-right absolute right-[20px] top-[20px] text-[16px] text-white"
-        aria-hidden="true"
-      />
+        <span
+          className="flex items-center gap-[6px] text-[11px] font-normal text-[#9a9a9a]"
+          style={{ fontFamily: "Poppins, sans-serif" }}
+        >
+          <span
+            className={`h-[7px] w-[7px] rounded-full ${desenvolvedor.active ? "bg-[#5fd068]" : "bg-[#ff641f]"}`}
+            aria-hidden="true"
+          />
+          {desenvolvedor.active ? "Ativo" : "Inativo"}
+        </span>
+      </div>
 
-      <span
-        className="mt-[26px] max-w-[190px] truncate text-[20px] font-normal text-white"
-        style={{ fontFamily: "Outfit, sans-serif" }}
+      {/* TODO: navegar para a página de detalhes do desenvolvedor */}
+      <button
+        type="button"
+        aria-label={`Ver detalhes de ${desenvolvedor.name}`}
+        title="Ver detalhes"
+        className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[#505555] transition-colors group-hover:text-[#ed6a32]"
       >
-        {desenvolvedor.name}
-      </span>
-
-      <span
-        className="flex items-center gap-[6px] text-[10px] font-normal text-white"
-        style={{ fontFamily: "Poppins, sans-serif" }}
-      >
-        <i
-          className={`fi fi-br-${desenvolvedor.active ? "check" : "cross"} text-[9px] ${desenvolvedor.active ? "text-[#5fd068]" : "text-[#ff641f]"}`}
-          aria-hidden="true"
-        />
-        {desenvolvedor.active ? "Ativo" : "Inativo"}
-      </span>
+        <IdCard size={18} strokeWidth={1.5} />
+      </button>
     </article>
   );
 }
@@ -187,134 +190,118 @@ function ModalCadastroDesenvolvedor({
     }
   }
 
+  const statusOpcaoClasse = (selecionado: boolean) =>
+    `h-[36px] flex-1 rounded-[8px] border text-[13px] transition-colors ${
+      selecionado
+        ? "border-[#ed6a32] bg-[#ed6a32]/10 text-[#ed6a32]"
+        : "border-[#2a2c2d] text-[#9a9a9a] hover:border-[#3f3f3f] hover:text-white"
+    }`;
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 lg:p-10"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
       onClick={onFechar}
     >
       <form
         onSubmit={handleSalvar}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-[884px] overflow-hidden rounded-[20px] bg-[#141617] pb-[24px]"
-        data-node-id="261:2"
-        data-name="cadastro desenvolvedor"
+        className="relative w-full max-w-[400px] rounded-[14px] bg-[#141617] p-[24px]"
       >
-        <p
-          className="flex items-center justify-center gap-[10px] py-[24px] text-[20px] font-normal text-white"
-          style={{ fontFamily: "Poppins, sans-serif" }}
-          data-node-id="261:3"
-        >
-          <i className="fi fi-br-user-add text-[18px] text-[#ed6a32]" aria-hidden="true" />
-          Cadastrar Desenvolvedor
-        </p>
-        <div className="h-px w-full bg-[#3f3f3f]" data-node-id="261:9" />
+        <div className="mb-[20px] flex items-center justify-between">
+          <h2
+            className="text-[16px] font-medium text-white"
+            style={{ fontFamily: "Poppins, sans-serif" }}
+          >
+            Novo desenvolvedor
+          </h2>
+          <button
+            type="button"
+            onClick={onFechar}
+            aria-label="Fechar"
+            className="cursor-pointer border-0 bg-transparent p-0 text-[#9a9a9a] transition-colors hover:text-white"
+          >
+            <X size={18} strokeWidth={1.5} />
+          </button>
+        </div>
 
-        <div className="flex flex-col gap-[20px] px-[66px] pt-[24px]">
-          <div className="flex gap-[15px]">
-            <div className="flex-1">
-              <label
-                className="mb-[8px] flex items-center gap-[8px] text-[20px] font-normal text-white"
-                style={{ fontFamily: "Poppins, sans-serif" }}
-              >
-                <i className="fi fi-br-user text-[16px] text-[#9a9a9a]" aria-hidden="true" />
-                Nome
-              </label>
-              <input
-                type="text"
-                required
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Nome"
-                className="h-[48px] w-full rounded-[10px] bg-[#3f3f3f] px-[18px] text-[16px] text-white placeholder-[#9a9a9a] outline-none"
-                style={{ fontFamily: "Poppins, sans-serif" }}
-                data-node-id="261:11"
-              />
-            </div>
+        <div className="flex flex-col gap-[16px]">
+          <div>
+            <label
+              className="mb-[6px] block text-[12px] text-[#9a9a9a]"
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              Nome
+            </label>
+            <input
+              type="text"
+              required
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Nome do desenvolvedor"
+              className="h-[40px] w-full rounded-[8px] border border-[#2a2c2d] bg-[#1c1e1f] px-[14px] text-[14px] text-white placeholder-[#6b6b6b] outline-none focus:border-[#ed6a32]"
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            />
+          </div>
 
-            <div className="w-[195px]">
-              <label
-                className="mb-[8px] flex items-center gap-[8px] text-[20px] font-normal text-white"
-                style={{ fontFamily: "Poppins, sans-serif" }}
+          <div>
+            <label
+              className="mb-[6px] block text-[12px] text-[#9a9a9a]"
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              Status
+            </label>
+            <div className="flex gap-[8px]" style={{ fontFamily: "Poppins, sans-serif" }}>
+              <button
+                type="button"
+                onClick={() => setAtivo(true)}
+                className={statusOpcaoClasse(ativo === true)}
               >
-                <i className="fi fi-br-toggle-on text-[16px] text-[#9a9a9a]" aria-hidden="true" />
-                Status
-              </label>
-              <div className="relative">
-                <select
-                  value={ativo === null ? "" : ativo ? "ativo" : "inativo"}
-                  onChange={(e) =>
-                    setAtivo(e.target.value === "" ? null : e.target.value === "ativo")
-                  }
-                  className="h-[48px] w-full appearance-none rounded-[10px] bg-[#3f3f3f] px-[18px] pr-[36px] text-[16px] text-white outline-none"
-                  style={{ fontFamily: "Poppins, sans-serif" }}
-                  data-node-id="261:13"
-                >
-                  <option value="" disabled>
-                    Status
-                  </option>
-                  <option value="ativo">Ativo</option>
-                  <option value="inativo">Inativo</option>
-                </select>
-                <svg
-                  className="pointer-events-none absolute right-[14px] top-1/2 -translate-y-1/2"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M6 9l6 6 6-6"
-                    stroke="white"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
+                Ativo
+              </button>
+              <button
+                type="button"
+                onClick={() => setAtivo(false)}
+                className={statusOpcaoClasse(ativo === false)}
+              >
+                Inativo
+              </button>
             </div>
           </div>
 
           <div>
             <label
-              className="mb-[8px] flex items-center gap-[8px] text-[20px] font-normal text-white"
+              className="mb-[6px] block text-[12px] text-[#9a9a9a]"
               style={{ fontFamily: "Poppins, sans-serif" }}
             >
-              <i className="fi fi-br-file-code text-[16px] text-[#9a9a9a]" aria-hidden="true" />
-              Competências Técnicas
+              Competências técnicas
             </label>
             <textarea
               value={competencias}
               onChange={(e) => setCompetencias(e.target.value)}
-              placeholder="Competências Técnicas"
-              className="h-[193px] w-full resize-none rounded-[10px] bg-[#3f3f3f] px-[24px] py-[16px] text-[16px] text-white placeholder-[#9a9a9a] outline-none"
+              placeholder="Ex: React, Node.js, TypeScript"
+              className="h-[84px] w-full resize-none rounded-[8px] border border-[#2a2c2d] bg-[#1c1e1f] px-[14px] py-[10px] text-[14px] text-white placeholder-[#6b6b6b] outline-none focus:border-[#ed6a32]"
               style={{ fontFamily: "Poppins, sans-serif" }}
-              data-node-id="261:12"
             />
           </div>
 
           {erro && <p className="text-[12px] text-[#ff641f]">{erro}</p>}
 
-          <div className="mt-[10px] flex items-center justify-between">
+          <div className="mt-[4px] flex items-center justify-end gap-[10px]">
             <button
               type="button"
               onClick={onFechar}
-              className="flex h-[48px] w-[171px] items-center justify-center gap-[8px] rounded-[10px] bg-[#3f3f3f] text-center text-[20px] leading-none text-white"
+              className="h-[38px] cursor-pointer rounded-[8px] border-0 bg-transparent px-[16px] text-[13px] text-[#9a9a9a] transition-colors hover:text-white"
               style={{ fontFamily: "Poppins, sans-serif" }}
-              data-node-id="261:5"
             >
-              <i className="fi fi-br-arrow-left text-[15px] leading-none" aria-hidden="true" />
-              <span>Voltar</span>
+              Cancelar
             </button>
             <button
               type="submit"
               disabled={enviando}
-              className="flex h-[48px] w-[171px] items-center justify-center gap-[8px] rounded-[10px] bg-[#ed6a32] text-center text-[20px] leading-none text-white disabled:opacity-60"
+              className="h-[38px] cursor-pointer rounded-[8px] border-0 bg-[#ed6a32] px-[18px] text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
               style={{ fontFamily: "Poppins, sans-serif" }}
-              data-node-id="261:4"
             >
-              <i className="fi fi-br-check text-[15px] leading-none" aria-hidden="true" />
-              <span>{enviando ? "Salvando..." : "Salvar"}</span>
+              {enviando ? "Salvando..." : "Salvar"}
             </button>
           </div>
         </div>

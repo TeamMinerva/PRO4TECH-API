@@ -7,7 +7,7 @@ import { ErroCampo } from '../components/ErroCampo';
 import { OpcaoDropdown } from '../components/OpcaoDropdown';
 import { SetaDropdown } from '../components/SetaDropdown';
 import { TagRemovivel } from '../components/TagRemovivel';
-import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
+import { useDesenvolvedores, type Desenvolvedor } from '../hooks/useDesenvolvedores';
 import { useDropdown } from '../hooks/useDropdown';
 import { STATUS_OPCOES, TECNOLOGIAS_DISPONIVEIS, useProjeto } from '../hooks/useProjeto';
 
@@ -250,30 +250,21 @@ export default function CadastroProjeto() {
                             />
 
                             <div className="pt-2 font-['Poppins']">
-                              <span className="mb-2 flex items-center gap-2 text-base text-[#8a8f8f]">
-                                <Users size={15} strokeWidth={1.75} />
-                                Desenvolvedores vinculados:
-                              </span>
-                              <select
-                                multiple
-                                value={pbi.desenvolvedores}
-                                onChange={(e) =>
+                              <SeletorDesenvolvedores
+                                selecionados={pbi.desenvolvedores}
+                                disponiveis={devsDisponiveis}
+                                onToggle={(id) =>
                                   atualizarPBI(
                                     epico.id,
                                     feature.id,
                                     pbi.id,
                                     'desenvolvedores',
-                                    Array.from(e.target.selectedOptions, (opcao) => opcao.value)
+                                    pbi.desenvolvedores.includes(id)
+                                      ? pbi.desenvolvedores.filter((d) => d !== id)
+                                      : [...pbi.desenvolvedores, id]
                                   )
                                 }
-                                className="w-full bg-[#191b1c] text-lg p-2 rounded-[10px] outline-none border border-[#2d2d2d] text-white"
-                              >
-                                {devsDisponiveis.map((dev) => (
-                                  <option key={dev.id} value={dev.id}>
-                                    {dev.nome}
-                                  </option>
-                                ))}
-                              </select>
+                              />
                               <ErroCampo mensagem={erroDoCampo(`pbi.${pbi.id}.desenvolvedores`)} />
                             </div>
                           </div>
@@ -412,6 +403,54 @@ export default function CadastroProjeto() {
           </div>
         </div>
       </aside>
+    </div>
+  );
+}
+
+interface SeletorDesenvolvedoresProps {
+  selecionados: string[];
+  disponiveis: Desenvolvedor[];
+  onToggle: (id: string) => void;
+}
+
+function SeletorDesenvolvedores({ selecionados, disponiveis, onToggle }: SeletorDesenvolvedoresProps) {
+  const { aberto, setAberto, ref } = useDropdown<HTMLDivElement>();
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 mb-2">
+      <div className="relative inline-block" ref={ref}>
+        <button
+          type="button"
+          onClick={() => setAberto(!aberto)}
+          className="flex items-center gap-2 text-[#8a8f8f] hover:text-white transition-colors cursor-pointer text-base font-['Poppins'] select-none"
+        >
+          <Users size={15} strokeWidth={1.75} />
+          <span>Desenvolvedores vinculados</span>
+          <SetaDropdown aberto={aberto} />
+        </button>
+
+        {aberto && (
+          <div className="absolute top-full left-0 mt-2 z-50 min-w-[220px] max-h-64 overflow-y-auto bg-[#191b1c] border border-[#2d2d2d] rounded-[12px] shadow-2xl py-1.5 font-['Poppins'] scrollbar-thin scrollbar-thumb-[#2d2d2d]">
+            {disponiveis.length === 0 ? (
+              <p className="px-4 py-2 text-sm text-[#5a5f5f]">Nenhum desenvolvedor disponível.</p>
+            ) : (
+              disponiveis.map((dev) => (
+                <OpcaoDropdown
+                  key={dev.id}
+                  label={dev.nome}
+                  selecionada={selecionados.includes(dev.id)}
+                  onClick={() => onToggle(dev.id)}
+                />
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {selecionados.map((id) => {
+        const dev = disponiveis.find((d) => d.id === id);
+        return <TagRemovivel key={id} label={dev?.nome ?? id} onRemove={() => onToggle(id)} />;
+      })}
     </div>
   );
 }
