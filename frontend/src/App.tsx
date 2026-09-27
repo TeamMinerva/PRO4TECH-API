@@ -1,8 +1,9 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Login from "./telas/Login";
-import Cadastro from "./telas/Cadastro";
-import CadastroProjeto from "./telas/CadastroProjeto";
-import Galeria from "./telas/Galeria";
+import Login from "./pages/Login";
+import Cadastro from "./pages/Cadastro";
+import CadastroProjeto from "./pages/CadastroProjeto";
+import Galeria from "./pages/Galeria";
+import Home from "./pages/Home";
 
 function App() {
   return (
@@ -12,6 +13,9 @@ function App() {
         <Route path="/cadastro" element={<Cadastro />} />
         <Route path="/cadastro-projeto" element={<CadastroProjeto />} />
         <Route path="/galeria" element={<Galeria />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/desenvolvedores" element={<Galeria />} />
+        <Route path="/projetos" element={<Galeria />} />
       </Routes>
     </BrowserRouter>
   );

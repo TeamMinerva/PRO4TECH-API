@@ -93,7 +93,7 @@ function GaleriaDesenvolvedor() {
 function DesenvolvedorCard({ desenvolvedor }: { desenvolvedor: Desenvolvedor }) {
   return (
     <article
-      className="relative h-[128px] w-[239px] rounded-[18px] bg-[#2b2b2b] px-[24px] pt-[22px] pb-[16px] flex flex-col justify-between transition-colors hover:bg-[#323232]"
+      className="relative h-[128px] w-[239px] rounded-[18px] bg-[#141617] px-[24px] pt-[22px] pb-[16px] flex flex-col justify-between transition-colors hover:bg-[#1c1e1f]"
       data-node-id="248:85"
     >
       <i
@@ -195,7 +195,7 @@ function ModalCadastroDesenvolvedor({
       <form
         onSubmit={handleSalvar}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-[884px] overflow-hidden rounded-[20px] bg-[#2d2d2d] pb-[24px]"
+        className="relative w-full max-w-[884px] overflow-hidden rounded-[20px] bg-[#141617] pb-[24px]"
         data-node-id="261:2"
         data-name="cadastro desenvolvedor"
       >

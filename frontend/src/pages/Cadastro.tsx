@@ -45,11 +45,11 @@ export default function Cadastro() {
 
   return (
     <div
-      className="bg-[#191b1c] w-full h-screen overflow-hidden flex items-center p-6 lg:py-10 lg:pl-[50px] lg:pr-[50px] animate-slide-in-right"
+      className="bg-[#191b1c] w-full h-screen overflow-hidden flex items-center p-6 lg:py-10 lg:pl-[50px] lg:pr-[50px]"
       data-node-id="17:44"
       data-name="cadastro"
     >
-      <div className="w-full lg:h-full lg:max-h-[732px] flex flex-col-reverse lg:flex-row items-center lg:items-start justify-center lg:justify-between gap-12 lg:gap-[50px]">
+      <div className="mx-auto w-full max-w-[1280px] lg:h-auto lg:max-h-[calc(100vh-80px)] lg:aspect-[1280/732] flex flex-col-reverse lg:flex-row items-center lg:items-start justify-center lg:justify-between gap-8 sm:gap-10 lg:gap-[50px]">
         <div
           className="hidden lg:block relative h-full max-w-[790px] shrink-0 rounded-[15px] bg-[#141617]"
           style={{ aspectRatio: "790 / 732" }}
@@ -83,12 +83,12 @@ export default function Cadastro() {
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="flex-1 flex flex-col gap-10 lg:h-full lg:justify-between"
+          className="flex-1 flex flex-col gap-6 sm:gap-8 lg:gap-10 lg:h-full lg:justify-between"
         >
-          <div className="flex flex-col gap-40">
+          <div className="flex flex-col gap-16 sm:gap-24 md:gap-32 lg:gap-40">
             <div className="w-full max-w-[370px] mt-3 lg:mt-4 self-end text-right">
               <p
-                className="font-normal leading-none text-[28px] lg:text-[32px] text-white whitespace-nowrap"
+                className="font-normal leading-none text-[14px] sm:text-[17px] md:text-[19px] lg:text-[22px] text-white whitespace-nowrap"
                 style={{ fontFamily: "Outfit, sans-serif" }}
                 data-node-id="17:46"
               >
@@ -96,16 +96,16 @@ export default function Cadastro() {
               </p>
             </div>
 
-            <div className="flex flex-col gap-25">
+            <div className="flex flex-col gap-10 sm:gap-16 md:gap-20 lg:gap-25">
               <p
-                className="w-full text-center font-normal leading-none text-[48px] lg:text-[64px] text-white whitespace-nowrap"
+                className="w-full text-center font-normal leading-none text-[22px] sm:text-[30px] md:text-[38px] lg:text-[44px] text-white whitespace-nowrap"
                 style={{ fontFamily: "Outfit, sans-serif" }}
                 data-node-id="17:47"
               >
                 começar.
               </p>
 
-              <div className="w-full flex flex-col gap-10">
+              <div className="w-full flex flex-col gap-6 sm:gap-8 lg:gap-10">
                 <div className="w-full flex flex-col gap-2 transition-transform duration-200 focus-within:-translate-y-1">
                   <div className="w-full max-w-[370px]">
                     <input
@@ -117,7 +117,7 @@ export default function Cadastro() {
                         setEmail(e.target.value);
                         if (error) setError(null);
                       }}
-                      className="peer w-full bg-transparent border-0 p-0 m-0 text-[20px] text-white placeholder-[#3d3f40] outline-none"
+                      className="peer w-full bg-transparent border-0 p-0 m-0 text-[14px] sm:text-[16px] lg:text-[17px] text-white placeholder-[#3d3f40] outline-none"
                       style={{ fontFamily: "Poppins, sans-serif" }}
                       data-node-id="17:48"
                       disabled={loading}
@@ -140,7 +140,7 @@ export default function Cadastro() {
                         setPassword(e.target.value);
                         if (error) setError(null);
                       }}
-                      className="peer w-full bg-transparent border-0 p-0 m-0 text-[20px] text-white placeholder-[#3d3f40] outline-none"
+                      className="peer w-full bg-transparent border-0 p-0 m-0 text-[14px] sm:text-[16px] lg:text-[17px] text-white placeholder-[#3d3f40] outline-none"
                       style={{ fontFamily: "Poppins, sans-serif" }}
                       data-node-id="17:50"
                       disabled={loading}
@@ -160,7 +160,7 @@ export default function Cadastro() {
                 {(error || isPasswordTooShort || successMessage) && (
                   <div className="w-full max-w-[370px] -mt-5 transition-opacity duration-200">
                     <p
-                      className={`text-[15px] font-normal leading-tight ${
+                      className={`text-[13px] sm:text-[14px] lg:text-[15px] font-normal leading-tight ${
                         successMessage ? "text-[#4ade80]" : "text-[#ED6A32]"
                       }`}
                       style={{ fontFamily: "Poppins, sans-serif" }}
@@ -175,11 +175,11 @@ export default function Cadastro() {
               </div>
             </div>
           </div>
-          <div className="w-full flex flex-col gap-10">
+          <div className="w-full flex flex-col gap-6 sm:gap-8 lg:gap-10">
             <button
               type="submit"
               disabled={loading || isPasswordTooShort}
-              className="self-end px-6 h-[50px] min-w-[125px] bg-[#141617] rounded-[10px] text-white text-[20px] transition-transform duration-200 hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              className="self-end px-3 sm:px-4 lg:px-5 h-[34px] sm:h-[38px] lg:h-[40px] min-w-[90px] sm:min-w-[100px] lg:min-w-[110px] bg-[#141617] rounded-[10px] sm:rounded-[12px] text-white text-[13px] sm:text-[14px] lg:text-[15px] transition-transform duration-200 hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
               style={{ fontFamily: "Poppins, sans-serif" }}
               data-node-id="23:85"
             >
