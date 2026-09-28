@@ -1,4 +1,5 @@
 # PRO4TECH-API
+<img src="docs/assets/banner.png">
 
 <p align="center">
   |    
@@ -158,9 +159,11 @@ A proposta não é substituir a atuação do PO ou permitir que a IA tome decis�
 
 ## 🏆 MVP
 
+<img src="docs/assets/mvp.png">
+
 ## 📅 Sprints
 ### 🎯 Sprint 1
-- ✅ Status: Em andamento
+- ✅ Status: Concluída
 - 📅 Período: 07/09 - 27/09
 - 📄 Documentação: [Clique aqui](docs/sprints/sprint1.md)
 

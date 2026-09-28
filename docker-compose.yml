@@ -18,6 +18,8 @@ services:
       dockerfile: Dockerfile
     container_name: pro4tech-backend
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/pro4tech
       PORT: 3000
