@@ -5,6 +5,7 @@ import developerRoutes from './routes/developer.routes';
 import projectRoutes from "./routes/project.routes";
 import { developerGalleryRoutes } from "./routes/developers-gallery.route";
 import { projectGalleryRoutes } from "./routes/projects-galley.route";
+import bugsRouter from "./routes/bug.route";
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use("/api/projects", projectRoutes);
 app.use('/api/developers', developerRoutes);
 app.use("/api/developers-gallery", developerGalleryRoutes)
 app.use('/api/projects-gallery', projectGalleryRoutes)
+app.use('/api/bugs', bugsRouter)
 
 app.use("/auth", authRoutes);
 app.use("/api/auth", authRoutes);
