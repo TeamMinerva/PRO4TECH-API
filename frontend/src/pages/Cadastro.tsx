@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../services/authService";
 
 export default function Cadastro() {
@@ -185,6 +185,13 @@ export default function Cadastro() {
             >
               {loading ? "Cadastrando..." : "Registrar"}
             </button>
+            <Link
+              to="/"
+              className="block text-right text-[#3d3f40] text-[14px] sm:text-[16px] lg:text-[17px] whitespace-nowrap transition-colors hover:text-[#ED6A32]"
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              Já possui acesso? Entrar
+            </Link>
           </div>
         </form>
       </div>
