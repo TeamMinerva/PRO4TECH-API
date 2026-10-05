@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { ErroCampo } from './ErroCampo';
 
@@ -10,6 +10,8 @@ interface CabecalhoItemProps {
   tituloExcluir: string;
   tamanho: 'epico' | 'feature' | 'pbi';
   erro?: string;
+  colapsado?: boolean;
+  onAlternarColapso?: () => void;
 }
 
 const TAMANHOS = {
@@ -30,7 +32,17 @@ const TAMANHOS = {
   },
 } as const;
 
-export function CabecalhoItem({ rotulo, value, onChange, onRemover, tituloExcluir, tamanho, erro }: CabecalhoItemProps) {
+export function CabecalhoItem({
+  rotulo,
+  value,
+  onChange,
+  onRemover,
+  tituloExcluir,
+  tamanho,
+  erro,
+  colapsado,
+  onAlternarColapso,
+}: CabecalhoItemProps) {
   const classes = TAMANHOS[tamanho];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -44,6 +56,21 @@ export function CabecalhoItem({ rotulo, value, onChange, onRemover, tituloExclui
   return (
     <div>
       <div className="flex items-start gap-3">
+        {onAlternarColapso && (
+          <button
+            type="button"
+            title={colapsado ? 'Expandir' : 'Recolher'}
+            onClick={onAlternarColapso}
+            className="shrink-0 text-[#5a5f5f] hover:text-white transition-colors p-1 mt-0.5"
+          >
+            {colapsado ? (
+              <ChevronRight size={classes.icone} strokeWidth={2} />
+            ) : (
+              <ChevronDown size={classes.icone} strokeWidth={2} />
+            )}
+          </button>
+        )}
+
         <span className={`${classes.texto} shrink-0 font-normal whitespace-nowrap leading-normal font-['Outfit']`}>
           {rotulo}
         </span>

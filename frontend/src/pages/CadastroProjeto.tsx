@@ -38,6 +38,19 @@ export default function CadastroProjeto() {
   const { aberto: statusAberto, setAberto: setStatusAberto, ref: statusRef } = useDropdown();
   const { aberto: techAberto, setAberto: setTechAberto, ref: techRef } = useDropdown();
   const nomeTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [itensColapsados, setItensColapsados] = useState<Set<string>>(new Set());
+
+  const alternarColapso = (id: string) => {
+    setItensColapsados((anterior) => {
+      const proximo = new Set(anterior);
+      if (proximo.has(id)) {
+        proximo.delete(id);
+      } else {
+        proximo.add(id);
+      }
+      return proximo;
+    });
+  };
 
   useEffect(() => {
     const textarea = nomeTextareaRef.current;
@@ -164,135 +177,166 @@ export default function CadastroProjeto() {
           </div>
 
           <div className="border-l-2 border-[#2d2d2d] pl-6 ml-2 space-y-10 relative">
-            {projeto.epicos.map((epico, iE) => (
-              <div key={epico.id} className="space-y-4">
-                <CabecalhoItem
-                  rotulo={`${iE + 1}.0.0 Épico:`}
-                  value={epico.nome}
-                  onChange={(v) => atualizarEpico(epico.id, 'nome', v)}
-                  onRemover={() => removerEpico(epico.id)}
-                  tituloExcluir="Excluir Épico"
-                  tamanho="epico"
-                  erro={erroDoCampo(`epico.${epico.id}.nome`)}
-                />
+            {projeto.epicos.map((epico, iE) => {
+              const epicoColapsado = itensColapsados.has(epico.id);
+              return (
+                <div key={epico.id} className="space-y-4">
+                  <CabecalhoItem
+                    rotulo={`${iE + 1}.0.0 Épico:`}
+                    value={epico.nome}
+                    onChange={(v) => atualizarEpico(epico.id, 'nome', v)}
+                    onRemover={() => removerEpico(epico.id)}
+                    tituloExcluir="Excluir Épico"
+                    tamanho="epico"
+                    erro={erroDoCampo(`epico.${epico.id}.nome`)}
+                    colapsado={epicoColapsado}
+                    onAlternarColapso={() => alternarColapso(epico.id)}
+                  />
 
-                <CampoTexto
-                  label="Descrição:"
-                  value={epico.descricao}
-                  onChange={(v) => atualizarEpico(epico.id, 'descricao', v)}
-                  erro={erroDoCampo(`epico.${epico.id}.descricao`)}
-                />
-                <CampoTexto
-                  label="Objetivo:"
-                  value={epico.objetivo}
-                  onChange={(v) => atualizarEpico(epico.id, 'objetivo', v)}
-                  erro={erroDoCampo(`epico.${epico.id}.objetivo`)}
-                />
-                <CampoTexto
-                  label="Resultado esperado:"
-                  value={epico.resultadoEsperado}
-                  onChange={(v) => atualizarEpico(epico.id, 'resultadoEsperado', v)}
-                  erro={erroDoCampo(`epico.${epico.id}.resultadoEsperado`)}
-                  espacoInferior
-                />
-
-                <div className="border-l-2 border-[#282929] pl-6 space-y-8">
-                  {epico.features.map((feature, iF) => (
-                    <div key={feature.id} className="space-y-4">
-                      <CabecalhoItem
-                        rotulo={`${iE + 1}.${iF + 1}.0 Feature:`}
-                        value={feature.nome}
-                        onChange={(v) => atualizarFeature(epico.id, feature.id, 'nome', v)}
-                        onRemover={() => removerFeature(epico.id, feature.id)}
-                        tituloExcluir="Excluir Feature"
-                        tamanho="feature"
-                        erro={erroDoCampo(`feature.${feature.id}.nome`)}
-                      />
-
+                  {!epicoColapsado && (
+                    <>
                       <CampoTexto
                         label="Descrição:"
-                        value={feature.descricao}
-                        onChange={(v) => atualizarFeature(epico.id, feature.id, 'descricao', v)}
-                        erro={erroDoCampo(`feature.${feature.id}.descricao`)}
+                        value={epico.descricao}
+                        onChange={(v) => atualizarEpico(epico.id, 'descricao', v)}
+                        erro={erroDoCampo(`epico.${epico.id}.descricao`)}
                       />
                       <CampoTexto
-                        label="Critérios de aprovação:"
-                        value={feature.criteriosAprovacao}
-                        onChange={(v) => atualizarFeature(epico.id, feature.id, 'criteriosAprovacao', v)}
-                        erro={erroDoCampo(`feature.${feature.id}.criteriosAprovacao`)}
+                        label="Objetivo:"
+                        value={epico.objetivo}
+                        onChange={(v) => atualizarEpico(epico.id, 'objetivo', v)}
+                        erro={erroDoCampo(`epico.${epico.id}.objetivo`)}
+                      />
+                      <CampoTexto
+                        label="Resultado esperado:"
+                        value={epico.resultadoEsperado}
+                        onChange={(v) => atualizarEpico(epico.id, 'resultadoEsperado', v)}
+                        erro={erroDoCampo(`epico.${epico.id}.resultadoEsperado`)}
                         espacoInferior
                       />
 
-                      <div className="border-l-2 border-[#232424] pl-6 space-y-4">
-                        {feature.pbis.map((pbi, iP) => (
-                          <div key={pbi.id} className="space-y-4 bg-[#141617] p-5 rounded-[14px]">
-                            <CabecalhoItem
-                              rotulo={`${iE + 1}.${iF + 1}.${iP + 1} PBI:`}
-                              value={pbi.titulo}
-                              onChange={(v) => atualizarPBI(epico.id, feature.id, pbi.id, 'titulo', v)}
-                              onRemover={() => removerPBI(epico.id, feature.id, pbi.id)}
-                              tituloExcluir="Excluir PBI"
-                              tamanho="pbi"
-                              erro={erroDoCampo(`pbi.${pbi.id}.titulo`)}
-                            />
-
-                            <CampoTexto
-                              label="User Story:"
-                              value={pbi.userStory}
-                              onChange={(v) => atualizarPBI(epico.id, feature.id, pbi.id, 'userStory', v)}
-                              erro={erroDoCampo(`pbi.${pbi.id}.userStory`)}
-                            />
-                            <CampoTexto
-                              label="Critérios de aprovação:"
-                              value={pbi.criteriosAprovacao}
-                              onChange={(v) => atualizarPBI(epico.id, feature.id, pbi.id, 'criteriosAprovacao', v)}
-                              erro={erroDoCampo(`pbi.${pbi.id}.criteriosAprovacao`)}
-                            />
-
-                            <div className="pt-2 font-['Poppins']">
-                              <SeletorDesenvolvedores
-                                selecionados={pbi.desenvolvedores}
-                                disponiveis={devsDisponiveis}
-                                onToggle={(id) =>
-                                  atualizarPBI(
-                                    epico.id,
-                                    feature.id,
-                                    pbi.id,
-                                    'desenvolvedores',
-                                    pbi.desenvolvedores.includes(id)
-                                      ? pbi.desenvolvedores.filter((d) => d !== id)
-                                      : [...pbi.desenvolvedores, id]
-                                  )
-                                }
+                      <div className="border-l-2 border-[#282929] pl-6 space-y-8">
+                        {epico.features.map((feature, iF) => {
+                          const featureColapsada = itensColapsados.has(feature.id);
+                          return (
+                            <div key={feature.id} className="space-y-4">
+                              <CabecalhoItem
+                                rotulo={`${iE + 1}.${iF + 1}.0 Feature:`}
+                                value={feature.nome}
+                                onChange={(v) => atualizarFeature(epico.id, feature.id, 'nome', v)}
+                                onRemover={() => removerFeature(epico.id, feature.id)}
+                                tituloExcluir="Excluir Feature"
+                                tamanho="feature"
+                                erro={erroDoCampo(`feature.${feature.id}.nome`)}
+                                colapsado={featureColapsada}
+                                onAlternarColapso={() => alternarColapso(feature.id)}
                               />
-                              <ErroCampo mensagem={erroDoCampo(`pbi.${pbi.id}.desenvolvedores`)} />
+
+                              {!featureColapsada && (
+                                <>
+                                  <CampoTexto
+                                    label="Descrição:"
+                                    value={feature.descricao}
+                                    onChange={(v) => atualizarFeature(epico.id, feature.id, 'descricao', v)}
+                                    erro={erroDoCampo(`feature.${feature.id}.descricao`)}
+                                  />
+                                  <CampoTexto
+                                    label="Critérios de aprovação:"
+                                    value={feature.criteriosAprovacao}
+                                    onChange={(v) => atualizarFeature(epico.id, feature.id, 'criteriosAprovacao', v)}
+                                    erro={erroDoCampo(`feature.${feature.id}.criteriosAprovacao`)}
+                                    espacoInferior
+                                  />
+
+                                  <div className="border-l-2 border-[#232424] pl-6 space-y-4">
+                                    {feature.pbis.map((pbi, iP) => {
+                                      const pbiColapsado = itensColapsados.has(pbi.id);
+                                      return (
+                                        <div key={pbi.id} className="space-y-4 bg-[#141617] p-5 rounded-[14px]">
+                                          <CabecalhoItem
+                                            rotulo={`${iE + 1}.${iF + 1}.${iP + 1} PBI:`}
+                                            value={pbi.titulo}
+                                            onChange={(v) => atualizarPBI(epico.id, feature.id, pbi.id, 'titulo', v)}
+                                            onRemover={() => removerPBI(epico.id, feature.id, pbi.id)}
+                                            tituloExcluir="Excluir PBI"
+                                            tamanho="pbi"
+                                            erro={erroDoCampo(`pbi.${pbi.id}.titulo`)}
+                                            colapsado={pbiColapsado}
+                                            onAlternarColapso={() => alternarColapso(pbi.id)}
+                                          />
+
+                                          {!pbiColapsado && (
+                                            <>
+                                              <CampoTexto
+                                                label="User Story:"
+                                                value={pbi.userStory}
+                                                onChange={(v) =>
+                                                  atualizarPBI(epico.id, feature.id, pbi.id, 'userStory', v)
+                                                }
+                                                erro={erroDoCampo(`pbi.${pbi.id}.userStory`)}
+                                              />
+                                              <CampoTexto
+                                                label="Critérios de aprovação:"
+                                                value={pbi.criteriosAprovacao}
+                                                onChange={(v) =>
+                                                  atualizarPBI(epico.id, feature.id, pbi.id, 'criteriosAprovacao', v)
+                                                }
+                                                erro={erroDoCampo(`pbi.${pbi.id}.criteriosAprovacao`)}
+                                              />
+
+                                              <div className="pt-2 font-['Poppins']">
+                                                <SeletorDesenvolvedores
+                                                  selecionados={pbi.desenvolvedores}
+                                                  disponiveis={devsDisponiveis}
+                                                  onToggle={(id) =>
+                                                    atualizarPBI(
+                                                      epico.id,
+                                                      feature.id,
+                                                      pbi.id,
+                                                      'desenvolvedores',
+                                                      pbi.desenvolvedores.includes(id)
+                                                        ? pbi.desenvolvedores.filter((d) => d !== id)
+                                                        : [...pbi.desenvolvedores, id]
+                                                    )
+                                                  }
+                                                />
+                                                <ErroCampo mensagem={erroDoCampo(`pbi.${pbi.id}.desenvolvedores`)} />
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => adicionarPBI(epico.id, feature.id)}
+                                      className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] mt-2 font-['Poppins'] transition-colors"
+                                    >
+                                      <Plus size={15} strokeWidth={2.25} />
+                                      Novo PBI
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
 
                         <button
                           type="button"
-                          onClick={() => adicionarPBI(epico.id, feature.id)}
+                          onClick={() => adicionarFeature(epico.id)}
                           className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] mt-2 font-['Poppins'] transition-colors"
                         >
                           <Plus size={15} strokeWidth={2.25} />
-                          Novo PBI
+                          Nova Feature
                         </button>
                       </div>
-                    </div>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={() => adicionarFeature(epico.id)}
-                    className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] mt-2 font-['Poppins'] transition-colors"
-                  >
-                    <Plus size={15} strokeWidth={2.25} />
-                    Nova Feature
-                  </button>
+                    </>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             <button
               type="button"
