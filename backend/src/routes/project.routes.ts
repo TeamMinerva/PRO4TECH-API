@@ -1,5 +1,8 @@
 import { Router } from "express";
-import { createProjectController } from "../controllers/project.controller";
+import {
+  createProjectController,
+  getProjectByIdController,
+} from "../controllers/project.controller";
 
 const router = Router();
 
@@ -9,6 +12,8 @@ router.get("/", (req, res) => {
   });
 });
 
+router.get("/:id", getProjectByIdController);
+
 router.post("/", createProjectController);
 
-export default router;
+export default router;

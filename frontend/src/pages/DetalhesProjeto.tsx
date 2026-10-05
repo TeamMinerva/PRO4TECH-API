@@ -1,46 +1,54 @@
 import { ArrowLeft, Bug, ListTodo, MessageSquare, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChatLateral } from '../components/ChatLateral';
 import { SetaDropdown } from '../components/SetaDropdown';
 import { TagRemovivel } from '../components/TagRemovivel';
 import { STATUS_OPCOES } from '../hooks/useProjeto';
-
-interface Desenvolvedor {
-  id: number;
-  name: string;
-}
-
-interface DetalhesProjetoDados {
-  id: number;
-  name: string;
-  status: string;
-  technologies: string[];
-  developers: Desenvolvedor[];
-  similarProjects: { id: number; name: string }[];
-  backlog: { id: number; title: string; developers: Desenvolvedor[] }[];
-}
+import { getProjectById, type ProjetoDetalhes } from '../services/projectService';
 
 type Aba = 'bugs' | 'backlog';
 
 export default function DetalhesProjeto() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const projeto: DetalhesProjetoDados = {
-    id: Number(id),
-    name: 'Nome do projeto',
-    status: '',
-    technologies: [],
-    developers: [],
-    similarProjects: [],
-    backlog: [],
-  };
+  const [projeto, setProjeto] = useState<ProjetoDetalhes | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
   const [chatAberto, setChatAberto] = useState(true);
   const [semelhantesAberto, setSemelhantesAberto] = useState(false);
   const [equipeAberta, setEquipeAberta] = useState(false);
   const [aba, setAba] = useState<Aba>('bugs');
 
-  const statusLabel = STATUS_OPCOES.find((o) => o.valor === projeto.status)?.label ?? projeto.status;
+  useEffect(() => {
+    if (!id) return;
+
+    let ativo = true;
+    setCarregando(true);
+    setErro(null);
+
+    getProjectById(id)
+      .then((dados) => {
+        if (ativo) {
+          setProjeto(dados);
+          setCarregando(false);
+        }
+      })
+      .catch((err) => {
+        if (ativo) {
+          setErro(err instanceof Error ? err.message : 'Erro ao buscar projeto.');
+          setCarregando(false);
+        }
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [id]);
+
+  const statusLabel = projeto
+    ? STATUS_OPCOES.find((o) => o.valor === projeto.status)?.label ?? projeto.status
+    : '';
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#191b1c] p-6 gap-4 lg:py-10 lg:pl-[50px] lg:pr-[50px]">
@@ -55,7 +63,25 @@ export default function DetalhesProjeto() {
             Voltar
           </button>
 
-          <>
+          {carregando && (
+            <p className="text-[15px] text-[#5a5f5f] font-['Poppins']">Carregando detalhes do projeto...</p>
+          )}
+
+          {erro && (
+            <div className="flex flex-col gap-3 font-['Poppins']">
+              <p className="text-[16px] text-[#ED6A32]">{erro}</p>
+              <button
+                type="button"
+                onClick={() => navigate('/projetos')}
+                className="self-start text-[14px] text-[#5a5f5f] hover:text-white underline"
+              >
+                Voltar para a galeria de projetos
+              </button>
+            </div>
+          )}
+
+          {!carregando && !erro && projeto && (
+            <>
               <h1 className="mb-4 text-[32px] font-normal text-white break-words font-['Outfit']">
                 {projeto.name}
               </h1>
@@ -68,8 +94,8 @@ export default function DetalhesProjeto() {
 
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-[#5a5f5f]">Tecnologias:</span>
-                  {projeto.technologies.length === 0 && <span className="text-[#3d3f40]">—</span>}
-                  {projeto.technologies.map((t) => (
+                  {(projeto.technologies || []).length === 0 && <span className="text-[#3d3f40]">—</span>}
+                  {(projeto.technologies || []).map((t) => (
                     <TagRemovivel key={t} label={t} />
                   ))}
                 </div>
@@ -79,7 +105,7 @@ export default function DetalhesProjeto() {
                   aberto={semelhantesAberto}
                   onAlternar={() => setSemelhantesAberto(!semelhantesAberto)}
                   vazio="Nenhum projeto semelhante."
-                  itens={projeto.similarProjects.map((p) => (
+                  itens={(projeto.similarProjects || []).map((p) => (
                     <button
                       key={p.id}
                       type="button"
@@ -96,7 +122,7 @@ export default function DetalhesProjeto() {
                   aberto={equipeAberta}
                   onAlternar={() => setEquipeAberta(!equipeAberta)}
                   vazio="Nenhum desenvolvedor vinculado."
-                  itens={projeto.developers.map((d) => (
+                  itens={(projeto.developers || []).map((d) => (
                     <span key={d.id} className="text-base text-[#d6d6d6]">
                       {d.name}
                     </span>
@@ -138,15 +164,15 @@ export default function DetalhesProjeto() {
 
                   <div className="flex flex-col gap-2">
                     {aba === 'backlog' &&
-                      projeto.backlog.map((pbi) => (
+                      (projeto.backlog || []).map((pbi) => (
                         <LinhaTabela
                           key={pbi.id}
                           titulo={pbi.title}
-                          responsavel={pbi.developers.map((d) => d.name).join(', ')}
+                          responsavel={(pbi.developers || []).map((d) => d.name).join(', ')}
                         />
                       ))}
 
-                    {(aba === 'bugs' || projeto.backlog.length === 0) && (
+                    {(aba === 'bugs' || (projeto.backlog || []).length === 0) && (
                       <p className="px-4 py-2 text-[#3d3f40]">
                         {aba === 'bugs' ? 'Nenhum bug registrado.' : 'Backlog vazio.'}
                       </p>
@@ -154,7 +180,8 @@ export default function DetalhesProjeto() {
                   </div>
                 </div>
               </section>
-          </>
+            </>
+          )}
         </div>
       </div>
 
