@@ -19,6 +19,31 @@ export interface PBIBacklog {
   developers: Desenvolvedor[];
 }
 
+export interface PBIDetalhe {
+  id: number;
+  title: string;
+  userStory: string;
+  acceptanceCriteria: string;
+  developers: Desenvolvedor[];
+}
+
+export interface FeatureDetalhe {
+  id: number;
+  name: string;
+  description: string;
+  approvalCriteria: string;
+  pbis: PBIDetalhe[];
+}
+
+export interface EpicoDetalhe {
+  id: number;
+  name: string;
+  description: string;
+  objective: string;
+  expectedResult: string;
+  features: FeatureDetalhe[];
+}
+
 export interface ProjetoDetalhes {
   id: number;
   name: string;
@@ -27,7 +52,7 @@ export interface ProjetoDetalhes {
   developers: Desenvolvedor[];
   similarProjects: ProjetoSemelhante[];
   backlog: PBIBacklog[];
-  epics?: any[];
+  epics?: EpicoDetalhe[];
 }
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';

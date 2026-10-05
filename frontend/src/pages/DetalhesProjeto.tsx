@@ -1,9 +1,13 @@
 import { ArrowLeft, Bug, ListTodo, MessageSquare, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { BacklogEditavel } from '../components/BacklogEditavel';
+import { BotaoAba } from '../components/BotaoAba';
 import { ChatLateral } from '../components/ChatLateral';
-import { SetaDropdown } from '../components/SetaDropdown';
+import { Expansivel } from '../components/Expansivel';
 import { TagRemovivel } from '../components/TagRemovivel';
+import { useBacklogEditavel } from '../hooks/useBacklogEditavel';
+import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { STATUS_OPCOES } from '../hooks/useProjeto';
 import { getProjectById, type ProjetoDetalhes } from '../services/projectService';
 
@@ -19,6 +23,10 @@ export default function DetalhesProjeto() {
   const [semelhantesAberto, setSemelhantesAberto] = useState(false);
   const [equipeAberta, setEquipeAberta] = useState(false);
   const [aba, setAba] = useState<Aba>('bugs');
+  const [editando, setEditando] = useState(false);
+  const backlog = useBacklogEditavel();
+  const devsDisponiveis = useDesenvolvedores();
+  const { carregar: carregarBacklog } = backlog;
 
   useEffect(() => {
     if (!id) return;
@@ -31,6 +39,8 @@ export default function DetalhesProjeto() {
       .then((dados) => {
         if (ativo) {
           setProjeto(dados);
+          carregarBacklog(dados.epics || []);
+          setEditando(false);
           setCarregando(false);
         }
       })
@@ -44,7 +54,7 @@ export default function DetalhesProjeto() {
     return () => {
       ativo = false;
     };
-  }, [id]);
+  }, [id, carregarBacklog]);
 
   const statusLabel = projeto
     ? STATUS_OPCOES.find((o) => o.valor === projeto.status)?.label ?? projeto.status
@@ -156,29 +166,27 @@ export default function DetalhesProjeto() {
                   )}
                 </div>
 
-                <div className="rounded-[14px] bg-[#141617] p-5">
-                  <div className="mb-3 grid grid-cols-[1fr_minmax(120px,240px)] gap-4 px-4 text-[15px] text-[#5a5f5f]">
-                    <span>Título</span>
-                    <span>Dev. responsável</span>
-                  </div>
+                {aba === 'backlog' ? (
+                  <>
+                    <BacklogEditavel backlog={backlog} editando={editando} devsDisponiveis={devsDisponiveis} />
 
-                  <div className="flex flex-col gap-2">
-                    {aba === 'backlog' &&
-                      (projeto.backlog || []).map((pbi) => (
-                        <LinhaTabela
-                          key={pbi.id}
-                          titulo={pbi.title}
-                          responsavel={(pbi.developers || []).map((d) => d.name).join(', ')}
-                        />
-                      ))}
-
-                    {(aba === 'bugs' || (projeto.backlog || []).length === 0) && (
-                      <p className="px-4 py-2 text-[#3d3f40]">
-                        {aba === 'bugs' ? 'Nenhum bug registrado.' : 'Backlog vazio.'}
-                      </p>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setEditando(!editando)}
+                      className="mt-8 text-lg text-white hover:text-[#ED6A32] transition-colors"
+                    >
+                      {editando ? 'Concluir' : 'Editar'}
+                    </button>
+                  </>
+                ) : (
+                  <div className="rounded-[14px] bg-[#141617] p-5">
+                    <div className="mb-3 grid grid-cols-[1fr_minmax(120px,240px)] gap-4 px-4 text-[15px] text-[#5a5f5f]">
+                      <span>Título</span>
+                      <span>Dev. responsável</span>
+                    </div>
+                    <p className="px-4 py-2 text-[#3d3f40]">Nenhum bug registrado.</p>
                   </div>
-                </div>
+                )}
               </section>
             </>
           )}
@@ -197,65 +205,6 @@ export default function DetalhesProjeto() {
       )}
 
       <ChatLateral aberto={chatAberto} onFechar={() => setChatAberto(false)} />
-    </div>
-  );
-}
-
-interface BotaoAbaProps {
-  ativa: boolean;
-  onClick: () => void;
-  icone: React.ReactNode;
-  children: React.ReactNode;
-}
-
-function BotaoAba({ ativa, onClick, icone, children }: BotaoAbaProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex h-[40px] items-center gap-2 rounded-[10px] px-5 text-[15px] transition-colors ${
-        ativa ? 'bg-[#2d2d2d] text-[#ed6a32]' : 'text-[#3d3f40] hover:text-[#8a8f8f]'
-      }`}
-    >
-      {icone}
-      {children}
-    </button>
-  );
-}
-
-function LinhaTabela({ titulo, responsavel }: { titulo: string; responsavel: string }) {
-  return (
-    <div className="grid grid-cols-[1fr_minmax(120px,240px)] gap-4 rounded-[10px] bg-[#1c1e1f] px-4 py-3 text-white">
-      <span className="truncate">{titulo}</span>
-      <span className="truncate text-[#d6d6d6]">{responsavel || '—'}</span>
-    </div>
-  );
-}
-
-interface ExpansivelProps {
-  rotulo: string;
-  aberto: boolean;
-  onAlternar: () => void;
-  vazio: string;
-  itens: React.ReactNode[];
-}
-
-function Expansivel({ rotulo, aberto, onAlternar, vazio, itens }: ExpansivelProps) {
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onAlternar}
-        className="flex items-center gap-2.5 text-[#8a8f8f] hover:text-white transition-colors select-none"
-      >
-        {rotulo}
-        <SetaDropdown aberto={aberto} />
-      </button>
-      {aberto && (
-        <div className="mt-2 flex flex-col gap-1.5 pl-4">
-          {itens.length === 0 ? <span className="text-base text-[#3d3f40]">{vazio}</span> : itens}
-        </div>
-      )}
     </div>
   );
 }

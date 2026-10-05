@@ -1,6 +1,8 @@
-import { ArrowLeft, ArrowUp, MessageSquare, Plus, Sparkles, Users } from 'lucide-react';
+import { ArrowLeft, ArrowUp, MessageSquare, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BotaoAdicionar } from '../components/BotaoAdicionar';
+import { SeletorDesenvolvedores } from '../components/SeletorDesenvolvedores';
 import { CabecalhoItem } from '../components/CabecalhoItem';
 import { ChatLateral } from '../components/ChatLateral';
 import { CampoTexto } from '../components/CampoTexto';
@@ -8,7 +10,7 @@ import { ErroCampo } from '../components/ErroCampo';
 import { OpcaoDropdown } from '../components/OpcaoDropdown';
 import { SetaDropdown } from '../components/SetaDropdown';
 import { TagRemovivel } from '../components/TagRemovivel';
-import { useDesenvolvedores, type Desenvolvedor } from '../hooks/useDesenvolvedores';
+import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { useDropdown } from '../hooks/useDropdown';
 import { STATUS_OPCOES, TECNOLOGIAS_DISPONIVEIS, useProjeto } from '../hooks/useProjeto';
 
@@ -271,38 +273,17 @@ export default function CadastroProjeto() {
                           </div>
                         ))}
 
-                        <button
-                          type="button"
-                          onClick={() => adicionarPBI(epico.id, feature.id)}
-                          className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] mt-2 font-['Poppins'] transition-colors"
-                        >
-                          <Plus size={15} strokeWidth={2.25} />
-                          Novo PBI
-                        </button>
+                        <BotaoAdicionar onClick={() => adicionarPBI(epico.id, feature.id)}>Novo PBI</BotaoAdicionar>
                       </div>
                     </div>
                   ))}
 
-                  <button
-                    type="button"
-                    onClick={() => adicionarFeature(epico.id)}
-                    className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] mt-2 font-['Poppins'] transition-colors"
-                  >
-                    <Plus size={15} strokeWidth={2.25} />
-                    Nova Feature
-                  </button>
+                  <BotaoAdicionar onClick={() => adicionarFeature(epico.id)}>Nova Feature</BotaoAdicionar>
                 </div>
               </div>
             ))}
 
-            <button
-              type="button"
-              onClick={adicionarEpico}
-              className="flex items-center gap-2 text-lg text-[#ED6A32] hover:text-[#ff8555] mt-4 font-['Poppins'] transition-colors"
-            >
-              <Plus size={17} strokeWidth={2.25} />
-              Novo Épico
-            </button>
+            <BotaoAdicionar onClick={adicionarEpico} grande>Novo Épico</BotaoAdicionar>
           </div>
 
           <div className="mt-12 flex items-center gap-6 font-['Poppins']">
@@ -362,54 +343,6 @@ export default function CadastroProjeto() {
       )}
 
       <ChatLateral aberto={chatAberto} onFechar={() => setChatAberto(false)} />
-    </div>
-  );
-}
-
-interface SeletorDesenvolvedoresProps {
-  selecionados: string[];
-  disponiveis: Desenvolvedor[];
-  onToggle: (id: string) => void;
-}
-
-function SeletorDesenvolvedores({ selecionados, disponiveis, onToggle }: SeletorDesenvolvedoresProps) {
-  const { aberto, setAberto, ref } = useDropdown<HTMLDivElement>();
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 mb-2">
-      <div className="relative inline-block" ref={ref}>
-        <button
-          type="button"
-          onClick={() => setAberto(!aberto)}
-          className="flex items-center gap-2 text-[#8a8f8f] hover:text-white transition-colors cursor-pointer text-base font-['Poppins'] select-none"
-        >
-          <Users size={15} strokeWidth={1.75} />
-          <span>Desenvolvedores vinculados</span>
-          <SetaDropdown aberto={aberto} />
-        </button>
-
-        {aberto && (
-          <div className="absolute top-full left-0 mt-2 z-50 min-w-[220px] max-h-64 overflow-y-auto bg-[#191b1c] border border-[#2d2d2d] rounded-[12px] shadow-2xl py-1.5 font-['Poppins'] scrollbar-thin scrollbar-thumb-[#2d2d2d]">
-            {disponiveis.length === 0 ? (
-              <p className="px-4 py-2 text-sm text-[#5a5f5f]">Nenhum desenvolvedor disponível.</p>
-            ) : (
-              disponiveis.map((dev) => (
-                <OpcaoDropdown
-                  key={dev.id}
-                  label={dev.nome}
-                  selecionada={selecionados.includes(dev.id)}
-                  onClick={() => onToggle(dev.id)}
-                />
-              ))
-            )}
-          </div>
-        )}
-      </div>
-
-      {selecionados.map((id) => {
-        const dev = disponiveis.find((d) => d.id === id);
-        return <TagRemovivel key={id} label={dev?.nome ?? id} onRemove={() => onToggle(id)} />;
-      })}
     </div>
   );
 }
