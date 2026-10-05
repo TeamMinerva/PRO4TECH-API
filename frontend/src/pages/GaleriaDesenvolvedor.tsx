@@ -54,7 +54,7 @@ function GaleriaDesenvolvedor() {
       <button
         type="button"
         onClick={() => setModalAberto(true)}
-        className="mb-[30px] block cursor-pointer border-0 bg-transparent p-0 text-[20px] font-normal text-[#3d3f40]"
+        className="mb-[30px] block cursor-pointer border-0 bg-transparent p-0 text-[20px] font-normal text-[#3d3f40] transition-colors hover:text-[#ed6a32]"
         style={{ fontFamily: "Poppins, sans-serif" }}
       >
         Novo desenvolvedor

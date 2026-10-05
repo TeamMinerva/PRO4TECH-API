@@ -38,7 +38,7 @@ function Galeria() {
           </nav>
         </div>
 
-        <div className="absolute left-[7.5%] right-[7.5%] top-[61%]">
+        <div className="absolute left-[7.5%] right-[7.5%] top-[25%]">
           {abaAtiva === "projetos" && <GaleriaProjeto />}
           {abaAtiva === "desenvolvedores" && <GaleriaDesenvolvedor />}
         </div>
