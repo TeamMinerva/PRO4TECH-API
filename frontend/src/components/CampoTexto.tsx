@@ -7,9 +7,10 @@ interface CampoTextoProps {
   onChange: (valor: string) => void;
   espacoInferior?: boolean;
   erro?: string;
+  somenteLeitura?: boolean;
 }
 
-export function CampoTexto({ label, value, onChange, espacoInferior, erro }: CampoTextoProps) {
+export function CampoTexto({ label, value, onChange, espacoInferior, erro, somenteLeitura }: CampoTextoProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export function CampoTexto({ label, value, onChange, espacoInferior, erro }: Cam
           ref={textareaRef}
           rows={1}
           value={value}
+          readOnly={somenteLeitura}
           onChange={(e) => onChange(e.target.value)}
           className="w-full min-w-0 resize-none overflow-hidden bg-transparent text-lg outline-none text-white placeholder-[#3d3f40] pb-1 leading-normal break-words"
         />

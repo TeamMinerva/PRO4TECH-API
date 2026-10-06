@@ -36,3 +36,13 @@ export const createProjectSchema = z.object({
     })
   )
 });
+
+export const getProjectParamsSchema = z.object({
+  id: z.coerce
+    .number({ message: "O identificador do projeto deve ser um número inteiro positivo." })
+    .int("O identificador do projeto deve ser um número inteiro positivo.")
+    .positive("O identificador do projeto deve ser um número inteiro positivo.")
+    .max(2147483647, "O identificador informado excede o limite máximo permitido."),
+});
+
+export type GetProjectParams = z.infer<typeof getProjectParamsSchema>;
