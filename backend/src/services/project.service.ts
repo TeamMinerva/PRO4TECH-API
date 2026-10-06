@@ -96,6 +96,12 @@ export async function getProjectById(id: number) {
     const project = await prisma.project.findUnique({
         where: { id },
         include: {
+            bugs: {
+                orderBy: { createdAt: "desc" },
+                include: {
+                    developer: { select: { id: true, name: true } },
+                },
+            },
             epics: {
                 orderBy: { id: "asc" },
                 include: {
@@ -200,6 +206,7 @@ export async function getProjectById(id: number) {
         developers,
         similarProjects,
         backlog,
+        bugs: project.bugs,
         epics: project.epics,
     };
 }
