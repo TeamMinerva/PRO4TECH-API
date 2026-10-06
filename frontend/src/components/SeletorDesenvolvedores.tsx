@@ -1,4 +1,5 @@
 import { Users } from 'lucide-react';
+import { useState } from 'react';
 import { useDropdown } from '../hooks/useDropdown';
 import type { Desenvolvedor } from '../hooks/useDesenvolvedores';
 import { OpcaoDropdown } from './OpcaoDropdown';
@@ -21,6 +22,15 @@ export function SeletorDesenvolvedores({
   somenteLeitura,
 }: SeletorDesenvolvedoresProps) {
   const { aberto, setAberto, ref } = useDropdown<HTMLDivElement>();
+  const [paraCima, setParaCima] = useState(false);
+
+  const alternar = () => {
+    if (!aberto && ref.current) {
+      const { bottom } = ref.current.getBoundingClientRect();
+      setParaCima(window.innerHeight - bottom < 280 && bottom > 280);
+    }
+    setAberto(!aberto);
+  };
 
   return (
     <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -33,7 +43,7 @@ export function SeletorDesenvolvedores({
         <div className="relative inline-block" ref={ref}>
           <button
             type="button"
-            onClick={() => setAberto(!aberto)}
+            onClick={alternar}
             className="flex items-center gap-2 text-[#8a8f8f] hover:text-white transition-colors cursor-pointer text-base font-['Poppins'] select-none"
           >
             <Users size={15} strokeWidth={1.75} />
@@ -42,7 +52,7 @@ export function SeletorDesenvolvedores({
           </button>
 
           {aberto && (
-            <div className="absolute top-full left-0 mt-2 z-50 min-w-[220px] max-h-64 overflow-y-auto bg-[#191b1c] border border-[#2d2d2d] rounded-[12px] shadow-2xl py-1.5 font-['Poppins'] scrollbar-thin scrollbar-thumb-[#2d2d2d]">
+            <div className={`absolute left-0 z-50 min-w-[220px] max-h-64 overflow-y-auto overscroll-contain ${paraCima ? 'bottom-full mb-2' : 'top-full mt-2'} bg-[#191b1c] border border-[#2d2d2d] rounded-[12px] shadow-2xl py-1.5 font-['Poppins'] scrollbar-thin scrollbar-thumb-[#2d2d2d]`}>
               {disponiveis.length === 0 ? (
                 <p className="px-4 py-2 text-sm text-[#5a5f5f]">Nenhum desenvolvedor disponível.</p>
               ) : (

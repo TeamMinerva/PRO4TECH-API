@@ -37,6 +37,47 @@ export const createProjectSchema = z.object({
   )
 });
 
+export const updateProjectSchema = z.object({
+  name: z.string().min(1, "O projeto precisa de um nome."),
+  technologies: z
+    .array(z.string().trim().min(1, "O nome da tecnologia não pode estar vazio."))
+    .min(1, "Informe ao menos uma tecnologia."),
+  status: z.enum(["PLANNED", "IN_PROGRESS", "DONE"]),
+
+  epics: z.array(
+    z.object({
+      id: z.number().int(),
+      name: z.string().min(1, "Todo épico precisa de um nome."),
+      description: z.string().min(1, "Todo épico precisa de uma descrição."),
+      objective: z.string().min(1, "Todo épico precisa de um objetivo."),
+      expectedResult: z.string().min(1, "Todo épico precisa de um resultado esperado."),
+
+      features: z.array(
+        z.object({
+          id: z.number().int(),
+          name: z.string().min(1, "Toda feature precisa de um nome."),
+          description: z.string().min(1, "Toda feature precisa de uma descrição."),
+          approvalCriteria: z.string().min(1, "Toda feature precisa de critérios de aprovação."),
+
+          pbis: z.array(
+            z.object({
+              id: z.number().int(),
+              title: z.string().min(1, "Todo PBI precisa de um título."),
+              userStory: z.string().min(1, "Todo PBI precisa de uma user story."),
+              acceptanceCriteria: z.string().min(1, "Todo PBI precisa de critérios de aprovação."),
+              developerIds: z
+                .array(z.number().int().positive())
+                .min(1, "Todo PBI precisa de ao menos um desenvolvedor."),
+            })
+          ),
+        })
+      ),
+    })
+  ),
+});
+
+export type UpdateProjectData = z.infer<typeof updateProjectSchema>;
+
 export const getProjectParamsSchema = z.object({
   id: z.coerce
     .number({ message: "O identificador do projeto deve ser um número inteiro positivo." })

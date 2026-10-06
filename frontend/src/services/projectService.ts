@@ -75,3 +75,28 @@ export async function getProjectById(id: number | string): Promise<ProjetoDetalh
 
   return response.json();
 }
+
+export async function updateProject(id: number | string, payload: unknown): Promise<ProjetoDetalhes> {
+
+
+  const response = await fetch(`${API_URL}/api/projects/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Erro ao salvar o projeto.';
+    try {
+      const errorData = await response.json();
+      if (errorData?.message) {
+        errorMsg = errorData.message;
+      }
+    } catch {
+      // Usa mensagem padrão
+    }
+    throw new Error(errorMsg);
+  }
+
+  return response.json();
+}

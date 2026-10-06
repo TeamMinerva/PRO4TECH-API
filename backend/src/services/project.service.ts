@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import type { UpdateProjectData } from "../schemas/project.schema";
 
 interface CreatePBIData {
     title: string;
@@ -202,4 +203,97 @@ export async function getProjectById(id: number) {
         backlog,
         epics: project.epics,
     };
+}
+
+
+export async function updateProject(id: number, data: UpdateProjectData) {
+    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const existing = await tx.project.findUnique({
+            where: { id },
+            select: {
+                epics: {
+                    select: {
+                        id: true,
+                        features: { select: { id: true, pbis: { select: { id: true } } } },
+                    },
+                },
+            },
+        });
+
+        if (!existing) {
+            return null;
+        }
+
+        const epicIds = new Set(existing.epics.map((e) => e.id));
+        const featureIds = new Set(existing.epics.flatMap((e) => e.features.map((f) => f.id)));
+        const pbiIds = new Set(
+            existing.epics.flatMap((e) => e.features.flatMap((f) => f.pbis.map((p) => p.id)))
+        );
+
+        const keptEpics = new Set(data.epics.map((e) => e.id));
+        const keptFeatures = new Set(data.epics.flatMap((e) => e.features.map((f) => f.id)));
+        const keptPbis = new Set(
+            data.epics.flatMap((e) => e.features.flatMap((f) => f.pbis.map((p) => p.id)))
+        );
+
+        await tx.pBI.deleteMany({ where: { id: { in: [...pbiIds].filter((i) => !keptPbis.has(i)) } } });
+        await tx.feature.deleteMany({
+            where: { id: { in: [...featureIds].filter((i) => !keptFeatures.has(i)) } },
+        });
+        await tx.epic.deleteMany({ where: { id: { in: [...epicIds].filter((i) => !keptEpics.has(i)) } } });
+
+        await tx.project.update({
+            where: { id },
+            data: { name: data.name, technologies: data.technologies, status: data.status },
+        });
+
+        for (const epic of data.epics) {
+            const epicData = {
+                name: epic.name,
+                description: epic.description,
+                objective: epic.objective,
+                expectedResult: epic.expectedResult,
+            };
+            const savedEpic = epicIds.has(epic.id)
+                ? await tx.epic.update({ where: { id: epic.id }, data: epicData })
+                : await tx.epic.create({ data: { ...epicData, projectId: id } });
+
+            for (const feature of epic.features) {
+                const featureData = {
+                    name: feature.name,
+                    description: feature.description,
+                    approvalCriteria: feature.approvalCriteria,
+                };
+                const savedFeature = featureIds.has(feature.id)
+                    ? await tx.feature.update({ where: { id: feature.id }, data: featureData })
+                    : await tx.feature.create({ data: { ...featureData, epicId: savedEpic.id } });
+
+                for (const pbi of feature.pbis) {
+                    const pbiData = {
+                        title: pbi.title,
+                        userStory: pbi.userStory,
+                        acceptanceCriteria: pbi.acceptanceCriteria,
+                    };
+                    const developers = pbi.developerIds.map((devId) => ({ id: devId }));
+
+                    if (pbiIds.has(pbi.id)) {
+                        await tx.pBI.update({
+                            where: { id: pbi.id },
+                            data: { ...pbiData, featureId: savedFeature.id, developers: { set: developers } },
+                        });
+                    } else {
+                        await tx.pBI.create({
+                            data: {
+                                ...pbiData,
+                                featureId: savedFeature.id,
+                                developers: { connect: developers },
+                            },
+                        });
+                    }
+                }
+            }
+        }
+
+        return { id };
+    });
 }

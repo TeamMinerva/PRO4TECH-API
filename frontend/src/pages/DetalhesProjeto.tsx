@@ -1,4 +1,4 @@
-import { ArrowLeft, Bug, ListTodo, MessageSquare, Plus } from 'lucide-react';
+import { ArrowLeft, Bug, ListTodo, MessageSquare, Pencil, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BacklogEditavel } from '../components/BacklogEditavel';
@@ -7,7 +7,6 @@ import { ChatLateral } from '../components/ChatLateral';
 import { Expansivel } from '../components/Expansivel';
 import { TagRemovivel } from '../components/TagRemovivel';
 import { useBacklogEditavel } from '../hooks/useBacklogEditavel';
-import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { STATUS_OPCOES } from '../hooks/useProjeto';
 import { getProjectById, type ProjetoDetalhes } from '../services/projectService';
 
@@ -23,9 +22,7 @@ export default function DetalhesProjeto() {
   const [semelhantesAberto, setSemelhantesAberto] = useState(false);
   const [equipeAberta, setEquipeAberta] = useState(false);
   const [aba, setAba] = useState<Aba>('bugs');
-  const [editando, setEditando] = useState(false);
   const backlog = useBacklogEditavel();
-  const devsDisponiveis = useDesenvolvedores();
   const { carregar: carregarBacklog } = backlog;
 
   useEffect(() => {
@@ -40,7 +37,6 @@ export default function DetalhesProjeto() {
         if (ativo) {
           setProjeto(dados);
           carregarBacklog(dados.epics || []);
-          setEditando(false);
           setCarregando(false);
         }
       })
@@ -64,14 +60,27 @@ export default function DetalhesProjeto() {
     <div className="flex h-screen overflow-hidden bg-[#191b1c] p-6 gap-4 lg:py-10 lg:pl-[50px] lg:pr-[50px]">
       <div className="flex-1 min-w-0 overflow-y-auto scrollbar-thin scrollbar-thumb-[#2d2d2d]">
         <div className="w-full pb-16 pr-4">
-          <button
-            type="button"
-            onClick={() => navigate('/projetos')}
-            className="mb-8 flex items-center gap-2 text-[#5a5f5f] hover:text-white transition-colors text-[15px] font-['Poppins']"
-          >
-            <ArrowLeft size={17} strokeWidth={1.75} />
-            Voltar
-          </button>
+          <div className="mb-8 flex items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={() => navigate('/projetos')}
+              className="flex items-center gap-2 text-[#5a5f5f] hover:text-white transition-colors text-[15px] font-['Poppins']"
+            >
+              <ArrowLeft size={17} strokeWidth={1.75} />
+              Voltar
+            </button>
+
+            {!carregando && !erro && projeto && (
+              <button
+                type="button"
+                onClick={() => navigate(`/projetos/${projeto.id}/editar`)}
+                className="flex items-center gap-2 text-lg text-white hover:text-[#ED6A32] transition-colors font-['Poppins']"
+              >
+                <Pencil size={16} strokeWidth={1.75} />
+                Editar
+              </button>
+            )}
+          </div>
 
           {carregando && (
             <p className="text-[15px] text-[#5a5f5f] font-['Poppins']">Carregando detalhes do projeto...</p>
@@ -167,17 +176,7 @@ export default function DetalhesProjeto() {
                 </div>
 
                 {aba === 'backlog' ? (
-                  <>
-                    <BacklogEditavel backlog={backlog} editando={editando} devsDisponiveis={devsDisponiveis} />
-
-                    <button
-                      type="button"
-                      onClick={() => setEditando(!editando)}
-                      className="mt-8 text-lg text-white hover:text-[#ED6A32] transition-colors"
-                    >
-                      {editando ? 'Concluir' : 'Editar'}
-                    </button>
-                  </>
+                  <BacklogEditavel backlog={backlog} editando={false} devsDisponiveis={[]} />
                 ) : (
                   <div className="rounded-[14px] bg-[#141617] p-5">
                     <div className="mb-3 grid grid-cols-[1fr_minmax(120px,240px)] gap-4 px-4 text-[15px] text-[#5a5f5f]">

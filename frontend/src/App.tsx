@@ -18,6 +18,7 @@ function App() {
         <Route path="/desenvolvedores" element={<Galeria />} />
         <Route path="/projetos" element={<Galeria />} />
         <Route path="/projetos/:id" element={<DetalhesProjeto />} />
+        <Route path="/projetos/:id/editar" element={<CadastroProjeto />} />
       </Routes>
     </BrowserRouter>
   );
