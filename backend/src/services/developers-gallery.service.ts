@@ -7,7 +7,12 @@ export async function listDevelopers({ search, active }: ListDevelopersQuery) {
       ...(search && { name: { contains: search, mode: "insensitive" } }),
       ...(active !== undefined && { active }),
     },
-    select: { id: true, name: true, active: true },
+    select: {
+      id: true,
+      name: true,
+      active: true,
+      technologies: { select: { id: true, name: true }, orderBy: { name: "asc" } },
+    },
     orderBy: { name: "asc" },
   });
 }
