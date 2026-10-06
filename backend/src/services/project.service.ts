@@ -25,7 +25,7 @@ interface CreateEpicData {
 
 interface CreateProjectData {
     name: string;
-    technologies: string[];
+    technologyIds: number[];
     status: 'PLANNED' | 'IN_PROGRESS' | 'DONE';
     epics: CreateEpicData[];
 }
@@ -35,7 +35,9 @@ export async function createProject(data: CreateProjectData) {
         const project = await tx.project.create({
             data: {
                 name: data.name,
-                technologies: data.technologies,
+                technologies: {
+                    connect: [...new Set(data.technologyIds)].map((id) => ({ id })),
+                },
                 status: data.status,
 
                 epics: {
@@ -71,6 +73,7 @@ export async function createProject(data: CreateProjectData) {
             },
 
             include: {
+                technologies: true,
                 epics: {
                     include: {
                         features: {
@@ -89,5 +92,30 @@ export async function createProject(data: CreateProjectData) {
         });
 
         return project;
+    });
+}
+
+export async function getProject(id: number) {
+    return await prisma.project.findUnique({
+        where: { id },
+        include: {
+            technologies: { select: { id: true, name: true }, orderBy: { name: "asc" } },
+            epics: {
+                orderBy: { id: "asc" },
+                include: {
+                    features: {
+                        orderBy: { id: "asc" },
+                        include: {
+                            pbis: {
+                                orderBy: { id: "asc" },
+                                include: {
+                                    developers: { select: { id: true, name: true, active: true } },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
     });
 }

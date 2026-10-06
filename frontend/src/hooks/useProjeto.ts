@@ -28,6 +28,7 @@ export interface Epico {
 export interface Projeto {
   nome: string;
   status: string;
+  // ids das tecnologias (como string, igual aos ids de desenvolvedores)
   tecnologias: string[];
   epicos: Epico[];
 }
@@ -44,12 +45,6 @@ const projetoInicial: Projeto = {
   epicos: [],
 };
 
-export const TECNOLOGIAS_DISPONIVEIS = [
-  'React', 'Node.js', 'TypeScript', 'JavaScript', 'Python',
-  'Java', 'C#', 'Go', 'Docker', 'PostgreSQL', 'MySQL',
-  'MongoDB', 'Tailwind CSS', 'Next.js', 'Express', 'Prisma', 'Git',
-];
-
 export const STATUS_OPCOES = [
   { valor: 'PLANNED', label: 'Planejado' },
   { valor: 'IN_PROGRESS', label: 'Em andamento' },
@@ -59,7 +54,7 @@ export const STATUS_OPCOES = [
 function montarPayload(projeto: Projeto) {
   return {
     name: projeto.nome,
-    technologies: projeto.tecnologias,
+    technologyIds: projeto.tecnologias.map(Number),
     status: projeto.status,
     epics: projeto.epicos.map((epico) => ({
       name: epico.nome,

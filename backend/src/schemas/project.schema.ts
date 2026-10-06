@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const createProjectSchema = z.object({
   name: z.string().min(1),
-  technologies: z
-    .array(z.string().trim().min(1, "O nome da tecnologia não pode estar vazio."))
+  technologyIds: z
+    .array(z.number().int().positive("Id de tecnologia inválido."))
     .min(1, "Informe ao menos uma tecnologia."),
   status: z.enum(["PLANNED", "IN_PROGRESS", "DONE"]),
 
@@ -35,4 +35,8 @@ export const createProjectSchema = z.object({
       )
     })
   )
+});
+
+export const projectIdParamSchema = z.object({
+  id: z.coerce.number().int().positive("Id inválido."),
 });

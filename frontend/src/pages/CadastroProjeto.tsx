@@ -5,11 +5,13 @@ import { CabecalhoItem } from '../components/CabecalhoItem';
 import { CampoTexto } from '../components/CampoTexto';
 import { ErroCampo } from '../components/ErroCampo';
 import { OpcaoDropdown } from '../components/OpcaoDropdown';
+import { PainelTecnologias } from '../components/PainelTecnologias';
 import { SetaDropdown } from '../components/SetaDropdown';
 import { TagRemovivel } from '../components/TagRemovivel';
 import { useDesenvolvedores, type Desenvolvedor } from '../hooks/useDesenvolvedores';
 import { useDropdown } from '../hooks/useDropdown';
-import { STATUS_OPCOES, TECNOLOGIAS_DISPONIVEIS, useProjeto } from '../hooks/useProjeto';
+import { STATUS_OPCOES, useProjeto } from '../hooks/useProjeto';
+import { useTecnologias } from '../hooks/useTecnologias';
 
 export default function CadastroProjeto() {
   const {
@@ -36,6 +38,8 @@ export default function CadastroProjeto() {
   const devsDisponiveis = useDesenvolvedores();
   const [chatAberto, setChatAberto] = useState(true);
   const { aberto: statusAberto, setAberto: setStatusAberto, ref: statusRef } = useDropdown();
+  const gerenciadorTecnologias = useTecnologias();
+  const tecnologiasDisponiveis = gerenciadorTecnologias.tecnologias;
   const { aberto: techAberto, setAberto: setTechAberto, ref: techRef } = useDropdown();
   const nomeTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -141,21 +145,22 @@ export default function CadastroProjeto() {
                     </button>
 
                     {techAberto && (
-                      <div className="absolute top-full left-0 mt-2 z-50 min-w-[220px] max-h-64 overflow-y-auto bg-[#141617] border border-[#2d2d2d] rounded-[12px] shadow-2xl py-1.5 font-['Poppins'] scrollbar-thin scrollbar-thumb-[#2d2d2d]">
-                        {TECNOLOGIAS_DISPONIVEIS.map((t) => (
-                          <OpcaoDropdown
-                            key={t}
-                            label={t}
-                            selecionada={projeto.tecnologias.includes(t)}
-                            onClick={() => alternarTecnologia(t)}
-                          />
-                        ))}
+                      <div className="absolute top-full left-0 mt-2 z-50 min-w-[260px] bg-[#141617] border border-[#2d2d2d] rounded-[12px] shadow-2xl py-1.5 font-['Poppins'] scrollbar-thin scrollbar-thumb-[#2d2d2d]">
+                        <PainelTecnologias
+                          gerenciador={gerenciadorTecnologias}
+                          selecionadas={projeto.tecnologias.map(Number)}
+                          onAlternar={(id) => alternarTecnologia(String(id))}
+                        />
                       </div>
                     )}
                   </div>
 
-                  {projeto.tecnologias.map((t) => (
-                    <TagRemovivel key={t} label={t} onRemove={() => alternarTecnologia(t)} />
+                  {projeto.tecnologias.map((id) => (
+                    <TagRemovivel
+                      key={id}
+                      label={tecnologiasDisponiveis.find((t) => String(t.id) === id)?.name ?? id}
+                      onRemove={() => alternarTecnologia(id)}
+                    />
                   ))}
                 </div>
                 <ErroCampo mensagem={erroDoCampo('projeto.tecnologias')} />
