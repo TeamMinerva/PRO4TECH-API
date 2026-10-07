@@ -3,6 +3,7 @@ import Login from "./pages/Login";
 import Cadastro from "./pages/Cadastro";
 import CadastroProjeto from "./pages/CadastroProjeto";
 import Galeria from "./pages/Galeria";
+import DetalhesProjeto from "./pages/DetalhesProjeto";
 import Home from "./pages/Home";
 
 function App() {
@@ -16,6 +17,8 @@ function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/desenvolvedores" element={<Galeria />} />
         <Route path="/projetos" element={<Galeria />} />
+        <Route path="/projetos/:id" element={<DetalhesProjeto />} />
+        <Route path="/projetos/:id/editar" element={<CadastroProjeto />} />
       </Routes>
     </BrowserRouter>
   );
