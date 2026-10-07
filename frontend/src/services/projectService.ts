@@ -44,6 +44,14 @@ export interface EpicoDetalhe {
   features: FeatureDetalhe[];
 }
 
+export interface BugDetalhe {
+  id: number;
+  title: string;
+  description: string;
+  solution: string;
+  developer: { id: number; name: string };
+}
+
 export interface ProjetoDetalhes {
   id: number;
   name: string;
@@ -52,6 +60,7 @@ export interface ProjetoDetalhes {
   developers: Desenvolvedor[];
   similarProjects: ProjetoSemelhante[];
   backlog: PBIBacklog[];
+  bugs?: BugDetalhe[];
   epics?: EpicoDetalhe[];
 }
 

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { BacklogEditavel } from '../components/BacklogEditavel';
 import { BotaoAba } from '../components/BotaoAba';
 import { ChatLateral } from '../components/ChatLateral';
+import { ModalCadastroBug } from '../components/ModalCadastroBug';
 import { Expansivel } from '../components/Expansivel';
 import { TagRemovivel } from '../components/TagRemovivel';
 import { useBacklogEditavel } from '../hooks/useBacklogEditavel';
@@ -51,6 +52,11 @@ export default function DetalhesProjeto() {
       ativo = false;
     };
   }, [id, carregarBacklog]);
+
+  // minmax(0, ...) impede que textos longos estourem as margens da tabela
+  const colunasBugs = chatAberto
+    ? 'grid-cols-[minmax(0,1fr)_minmax(120px,240px)]'
+    : 'grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,2fr)_minmax(120px,200px)]';
 
   const statusLabel = projeto
     ? STATUS_OPCOES.find((o) => o.valor === projeto.status)?.label ?? projeto.status
@@ -167,6 +173,7 @@ export default function DetalhesProjeto() {
                   {aba === 'bugs' && (
                     <button
                       type="button"
+                      onClick={() => setModalBugAberto(true)}
                       className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] transition-colors"
                     >
                       <Plus size={15} strokeWidth={2.25} />
@@ -179,11 +186,26 @@ export default function DetalhesProjeto() {
                   <BacklogEditavel backlog={backlog} editando={false} devsDisponiveis={[]} />
                 ) : (
                   <div className="rounded-[14px] bg-[#141617] p-5">
-                    <div className="mb-3 grid grid-cols-[1fr_minmax(120px,240px)] gap-4 px-4 text-[15px] text-[#5a5f5f]">
+                    <div className={`mb-3 grid ${colunasBugs} gap-4 px-4 text-[15px] text-[#5a5f5f]`}>
                       <span>Título</span>
+                      {!chatAberto && <span>Descrição</span>}
+                      {!chatAberto && <span>Solução</span>}
                       <span>Dev. responsável</span>
                     </div>
-                    <p className="px-4 py-2 text-[#3d3f40]">Nenhum bug registrado.</p>
+                    {(projeto.bugs || []).length === 0 && (
+                      <p className="px-4 py-2 text-[#3d3f40]">Nenhum bug registrado.</p>
+                    )}
+                    {(projeto.bugs || []).map((bug) => (
+                      <div
+                        key={bug.id}
+                        className={`grid ${colunasBugs} gap-4 rounded-[8px] px-4 py-2 text-base text-[#d6d6d6] hover:bg-[#1c1e1f]`}
+                      >
+                        <span className={chatAberto ? 'truncate' : 'line-clamp-3 break-words'}>{bug.title}</span>
+                        {!chatAberto && <span className="line-clamp-3 break-words">{bug.description}</span>}
+                        {!chatAberto && <span className="line-clamp-3 break-words">{bug.solution}</span>}
+                        <span className="truncate">{bug.developer.name}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </section>
@@ -204,6 +226,21 @@ export default function DetalhesProjeto() {
       )}
 
       <ChatLateral aberto={chatAberto} onFechar={() => setChatAberto(false)} />
+
+      {modalBugAberto && projeto && (
+        <ModalCadastroBug
+          projetoId={projeto.id}
+          projetoNome={projeto.name}
+          desenvolvedores={devsDisponiveis}
+          onFechar={() => setModalBugAberto(false)}
+          onCadastrado={() => {
+            setModalBugAberto(false);
+            getProjectById(String(projeto.id))
+              .then(setProjeto)
+              .catch((err) => console.error('Erro ao atualizar bugs:', err));
+          }}
+        />
+      )}
     </div>
   );
 }
