@@ -9,5 +9,21 @@ class Settings(BaseSettings):
     # Com thinking em CPU a resposta pode levar minutos.
     ai_timeout_seconds: float = 600.0
 
+    # Embedding (LightRAG, SCRUM-31). Trocar o modelo exige reindexar: a dimensao
+    # fica gravada nas tabelas do LightRAG.
+    embedding_model: str = "bge-m3"
+    embedding_dim: int = 1024
+    embedding_max_tokens: int = 8192
+
+    # Postgres (mesmo banco do Prisma, tabelas proprias com prefixo LIGHTRAG_).
+    postgres_host: str = "postgres"
+    postgres_port: int = 5432
+    postgres_user: str = "postgres"
+    postgres_password: str = "postgres"
+    postgres_database: str = "pro4tech"
+    # So isola linhas dentro das tabelas do LightRAG, nao cria schema separado.
+    lightrag_workspace: str = "pro4tech"
+    lightrag_working_dir: str = "/code/lightrag_storage"
+
 
 settings = Settings()
