@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowUp, MessageSquare, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { BotaoAdicionar } from '../components/BotaoAdicionar';
 import { SeletorDesenvolvedores } from '../components/SeletorDesenvolvedores';
 import { CabecalhoItem } from '../components/CabecalhoItem';
@@ -15,8 +15,12 @@ import { useDropdown } from '../hooks/useDropdown';
 import { STATUS_OPCOES, TECNOLOGIAS_DISPONIVEIS, useProjeto } from '../hooks/useProjeto';
 
 export default function CadastroProjeto() {
+  const { id } = useParams();
   const {
     projeto,
+    editando,
+    carregando,
+    erroCarga,
     feedback,
     erroDoCampo,
     temErrosVisiveis,
@@ -33,7 +37,7 @@ export default function CadastroProjeto() {
     atualizarFeature,
     atualizarPBI,
     handleSalvar,
-  } = useProjeto();
+  } = useProjeto(id);
 
   const navigate = useNavigate();
   const devsDisponiveis = useDesenvolvedores();
@@ -51,13 +55,34 @@ export default function CadastroProjeto() {
 
   const statusSelecionado = STATUS_OPCOES.find((o) => o.valor === projeto.status)?.label;
 
+  if (carregando || erroCarga) {
+    return (
+      <div className="flex h-screen flex-col gap-3 bg-[#191b1c] p-10 font-['Poppins']">
+        {carregando ? (
+          <p className="text-[15px] text-[#5a5f5f]">Carregando projeto...</p>
+        ) : (
+          <>
+            <p className="text-[16px] text-[#ED6A32]">{erroCarga}</p>
+            <button
+              type="button"
+              onClick={() => navigate('/projetos')}
+              className="self-start text-[14px] text-[#5a5f5f] hover:text-white underline"
+            >
+              Voltar para a galeria de projetos
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#191b1c] p-6 gap-4 lg:py-10 lg:pl-[50px] lg:pr-[50px]">
       <div className="flex-1 min-w-0 overflow-y-auto scrollbar-thin scrollbar-thumb-[#2d2d2d]">
         <div className="w-full pb-16 pr-4">
           <button
             type="button"
-            onClick={() => navigate('/galeria')}
+            onClick={() => navigate(editando ? `/projetos/${id}` : '/galeria')}
             className="mb-8 flex items-center gap-2 text-[#5a5f5f] hover:text-white transition-colors text-[15px] font-['Poppins']"
           >
             <ArrowLeft size={17} strokeWidth={1.75} />
@@ -296,7 +321,10 @@ export default function CadastroProjeto() {
             </button>
             <button
               type="button"
-              onClick={handleSalvar}
+              onClick={async () => {
+                const salvo = await handleSalvar();
+                if (salvo && editando) navigate(`/projetos/${id}`);
+              }}
               className="bg-[#141617] hover:bg-[#1c1e1f] text-white px-8 py-3 rounded-[12px] text-lg transition-colors border border-[#2d2d2d]"
             >
               Salvar

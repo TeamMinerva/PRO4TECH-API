@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getProjectById, updateProject, type ProjetoDetalhes } from '../services/projectService';
 
 export interface PBI {
   id: string;
@@ -56,21 +57,55 @@ export const STATUS_OPCOES = [
   { valor: 'DONE', label: 'Concluído' },
 ];
 
+// Itens já salvos têm id numérico (string); os criados na tela têm UUID e vão como -1 (novo).
+const idDoBanco = (id: string) => (/^\d+$/.test(id) ? Number(id) : -1);
+
+function projetoDeDetalhes(dados: ProjetoDetalhes): Projeto {
+  return {
+    nome: dados.name,
+    status: dados.status,
+    tecnologias: dados.technologies || [],
+    epicos: (dados.epics || []).map((e) => ({
+      id: String(e.id),
+      nome: e.name,
+      descricao: e.description,
+      objetivo: e.objective,
+      resultadoEsperado: e.expectedResult,
+      features: e.features.map((f) => ({
+        id: String(f.id),
+        nome: f.name,
+        descricao: f.description,
+        criteriosAprovacao: f.approvalCriteria,
+        pbis: f.pbis.map((p) => ({
+          id: String(p.id),
+          titulo: p.title,
+          userStory: p.userStory,
+          criteriosAprovacao: p.acceptanceCriteria,
+          desenvolvedores: p.developers.map((d) => String(d.id)),
+        })),
+      })),
+    })),
+  };
+}
+
 function montarPayload(projeto: Projeto) {
   return {
     name: projeto.nome,
     technologies: projeto.tecnologias,
     status: projeto.status,
     epics: projeto.epicos.map((epico) => ({
+      id: idDoBanco(epico.id),
       name: epico.nome,
       description: epico.descricao,
       objective: epico.objetivo,
       expectedResult: epico.resultadoEsperado,
       features: epico.features.map((feature) => ({
+        id: idDoBanco(feature.id),
         name: feature.nome,
         description: feature.descricao,
         approvalCriteria: feature.criteriosAprovacao,
         pbis: feature.pbis.map((pbi) => ({
+          id: idDoBanco(pbi.id),
           title: pbi.titulo,
           userStory: pbi.userStory,
           acceptanceCriteria: pbi.criteriosAprovacao,
@@ -115,10 +150,40 @@ function validarProjeto(projeto: Projeto): Record<string, string> {
   return erros;
 }
 
-export function useProjeto() {
+export function useProjeto(projetoId?: string) {
   const [projeto, setProjeto] = useState<Projeto>(projetoInicial);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [camposMarcados, setCamposMarcados] = useState<Set<string>>(new Set());
+
+  const [carregando, setCarregando] = useState(Boolean(projetoId));
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
+  const editando = Boolean(projetoId);
+
+  useEffect(() => {
+    if (!projetoId) return;
+
+    let ativo = true;
+    setCarregando(true);
+    setErroCarga(null);
+
+    getProjectById(projetoId)
+      .then((dados) => {
+        if (ativo) {
+          setProjeto(projetoDeDetalhes(dados));
+          setCarregando(false);
+        }
+      })
+      .catch((err) => {
+        if (ativo) {
+          setErroCarga(err instanceof Error ? err.message : 'Erro ao buscar projeto.');
+          setCarregando(false);
+        }
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [projetoId]);
 
   const erros = validarProjeto(projeto);
   const erroDoCampo = (chave: string) => (camposMarcados.has(chave) ? erros[chave] : undefined);
@@ -276,17 +341,22 @@ export function useProjeto() {
       ),
     }));
 
-  const handleSalvar = async () => {
+  const handleSalvar = async (): Promise<boolean> => {
     setFeedback(null);
 
     const chavesComErro = Object.keys(erros);
     if (chavesComErro.length > 0) {
       setCamposMarcados(new Set(chavesComErro));
       setFeedback({ tipo: 'erro', mensagem: 'Há campos obrigatórios não preenchidos.' });
-      return;
+      return false;
     }
 
     try {
+      if (projetoId) {
+        await updateProject(projetoId, montarPayload(projeto));
+        return true;
+      }
+
       const resposta = await fetch('http://localhost:3000/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -297,6 +367,7 @@ export function useProjeto() {
         setProjeto(projetoInicial);
         setCamposMarcados(new Set());
         setFeedback({ tipo: 'sucesso', mensagem: 'Projeto salvo com sucesso!' });
+        return true;
       } else {
         setFeedback({
           tipo: 'erro',
@@ -304,13 +375,20 @@ export function useProjeto() {
         });
       }
     } catch (erro) {
-      console.error('Erro de conexão:', erro);
-      setFeedback({ tipo: 'erro', mensagem: 'Não foi possível conectar ao servidor.' });
+      console.error('Erro ao salvar:', erro);
+      setFeedback({
+        tipo: 'erro',
+        mensagem: erro instanceof Error ? erro.message : 'Não foi possível conectar ao servidor.',
+      });
     }
+    return false;
   };
 
   return {
     projeto,
+    editando,
+    carregando,
+    erroCarga,
     feedback,
     erroDoCampo,
     temErrosVisiveis,
