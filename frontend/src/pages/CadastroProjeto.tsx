@@ -1,21 +1,28 @@
-import { ArrowLeft, ArrowUp, MessageSquare, Plus, Sparkles, Users, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, MessageSquare, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { BotaoAdicionar } from '../components/BotaoAdicionar';
+import { SeletorDesenvolvedores } from '../components/SeletorDesenvolvedores';
 import { CabecalhoItem } from '../components/CabecalhoItem';
+import { ChatLateral } from '../components/ChatLateral';
 import { CampoTexto } from '../components/CampoTexto';
 import { ErroCampo } from '../components/ErroCampo';
 import { OpcaoDropdown } from '../components/OpcaoDropdown';
 import { PainelTecnologias } from '../components/PainelTecnologias';
 import { SetaDropdown } from '../components/SetaDropdown';
 import { TagRemovivel } from '../components/TagRemovivel';
-import { useDesenvolvedores, type Desenvolvedor } from '../hooks/useDesenvolvedores';
+import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { useDropdown } from '../hooks/useDropdown';
 import { STATUS_OPCOES, useProjeto } from '../hooks/useProjeto';
 import { useTecnologias } from '../hooks/useTecnologias';
 
 export default function CadastroProjeto() {
+  const { id } = useParams();
   const {
     projeto,
+    editando,
+    carregando,
+    erroCarga,
     feedback,
     erroDoCampo,
     temErrosVisiveis,
@@ -32,7 +39,7 @@ export default function CadastroProjeto() {
     atualizarFeature,
     atualizarPBI,
     handleSalvar,
-  } = useProjeto();
+  } = useProjeto(id);
 
   const navigate = useNavigate();
   const devsDisponiveis = useDesenvolvedores();
@@ -52,13 +59,34 @@ export default function CadastroProjeto() {
 
   const statusSelecionado = STATUS_OPCOES.find((o) => o.valor === projeto.status)?.label;
 
+  if (carregando || erroCarga) {
+    return (
+      <div className="flex h-screen flex-col gap-3 bg-[#191b1c] p-10 font-['Poppins']">
+        {carregando ? (
+          <p className="text-[15px] text-[#5a5f5f]">Carregando projeto...</p>
+        ) : (
+          <>
+            <p className="text-[16px] text-[#ED6A32]">{erroCarga}</p>
+            <button
+              type="button"
+              onClick={() => navigate('/projetos')}
+              className="self-start text-[14px] text-[#5a5f5f] hover:text-white underline"
+            >
+              Voltar para a galeria de projetos
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#191b1c] p-6 gap-4 lg:py-10 lg:pl-[50px] lg:pr-[50px]">
       <div className="flex-1 min-w-0 overflow-y-auto scrollbar-thin scrollbar-thumb-[#2d2d2d]">
         <div className="w-full pb-16 pr-4">
           <button
             type="button"
-            onClick={() => navigate('/galeria')}
+            onClick={() => navigate(editando ? `/projetos/${id}` : '/galeria')}
             className="mb-8 flex items-center gap-2 text-[#5a5f5f] hover:text-white transition-colors text-[15px] font-['Poppins']"
           >
             <ArrowLeft size={17} strokeWidth={1.75} />
@@ -275,38 +303,17 @@ export default function CadastroProjeto() {
                           </div>
                         ))}
 
-                        <button
-                          type="button"
-                          onClick={() => adicionarPBI(epico.id, feature.id)}
-                          className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] mt-2 font-['Poppins'] transition-colors"
-                        >
-                          <Plus size={15} strokeWidth={2.25} />
-                          Novo PBI
-                        </button>
+                        <BotaoAdicionar onClick={() => adicionarPBI(epico.id, feature.id)}>Novo PBI</BotaoAdicionar>
                       </div>
                     </div>
                   ))}
 
-                  <button
-                    type="button"
-                    onClick={() => adicionarFeature(epico.id)}
-                    className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] mt-2 font-['Poppins'] transition-colors"
-                  >
-                    <Plus size={15} strokeWidth={2.25} />
-                    Nova Feature
-                  </button>
+                  <BotaoAdicionar onClick={() => adicionarFeature(epico.id)}>Nova Feature</BotaoAdicionar>
                 </div>
               </div>
             ))}
 
-            <button
-              type="button"
-              onClick={adicionarEpico}
-              className="flex items-center gap-2 text-lg text-[#ED6A32] hover:text-[#ff8555] mt-4 font-['Poppins'] transition-colors"
-            >
-              <Plus size={17} strokeWidth={2.25} />
-              Novo Épico
-            </button>
+            <BotaoAdicionar onClick={adicionarEpico} grande>Novo Épico</BotaoAdicionar>
           </div>
 
           <div className="mt-12 flex items-center gap-6 font-['Poppins']">
@@ -319,7 +326,10 @@ export default function CadastroProjeto() {
             </button>
             <button
               type="button"
-              onClick={handleSalvar}
+              onClick={async () => {
+                const salvo = await handleSalvar();
+                if (salvo && editando) navigate(`/projetos/${id}`);
+              }}
               className="bg-[#141617] hover:bg-[#1c1e1f] text-white px-8 py-3 rounded-[12px] text-lg transition-colors border border-[#2d2d2d]"
             >
               Salvar
@@ -365,97 +375,7 @@ export default function CadastroProjeto() {
         </button>
       )}
 
-      <aside
-        className={`shrink-0 overflow-hidden rounded-[16px] bg-[#141617] transition-[width] duration-300 ${
-          chatAberto ? 'w-[420px] sm:w-[480px]' : 'w-0'
-        }`}
-      >
-        <div className="flex h-full w-[420px] flex-col p-6 sm:w-[480px]">
-          <div className="flex items-center justify-between pb-6">
-            <p className="text-[20px] text-white" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              Chat
-            </p>
-            <button
-              type="button"
-              onClick={() => setChatAberto(false)}
-              aria-label="Fechar chat"
-              className="text-[#5a5f5f] transition-colors hover:text-white"
-            >
-              <X size={22} />
-            </button>
-          </div>
-
-          <div className="flex flex-1 flex-col justify-end gap-4 overflow-y-auto opacity-40">
-            <div className="h-12 w-64 self-start rounded-[14px] bg-[#2d2d2d]" />
-            <div className="h-12 w-64 self-end rounded-[14px] bg-[#3f3f3f]" />
-            <div className="h-12 w-64 self-end rounded-[14px] bg-[#3f3f3f]" />
-          </div>
-
-          <div className="relative mt-6 flex h-[52px] items-center justify-between rounded-[12px] border border-[#2d2d2d] px-4">
-            <input
-              type="text"
-              placeholder="Digite uma mensagem."
-              className="w-full bg-transparent border-0 p-0 m-0 text-[14px] text-white placeholder-[#3d3f40] outline-none"
-              style={{ fontFamily: 'Poppins, sans-serif' }}
-            />
-            <button
-              type="button"
-              aria-label="Enviar mensagem"
-              className="flex size-[26px] shrink-0 items-center justify-center text-[#3d3f40] transition-colors hover:text-[#ED6A32]"
-            >
-              <ArrowUp size={18} />
-            </button>
-          </div>
-        </div>
-      </aside>
-    </div>
-  );
-}
-
-interface SeletorDesenvolvedoresProps {
-  selecionados: string[];
-  disponiveis: Desenvolvedor[];
-  onToggle: (id: string) => void;
-}
-
-function SeletorDesenvolvedores({ selecionados, disponiveis, onToggle }: SeletorDesenvolvedoresProps) {
-  const { aberto, setAberto, ref } = useDropdown<HTMLDivElement>();
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 mb-2">
-      <div className="relative inline-block" ref={ref}>
-        <button
-          type="button"
-          onClick={() => setAberto(!aberto)}
-          className="flex items-center gap-2 text-[#8a8f8f] hover:text-white transition-colors cursor-pointer text-base font-['Poppins'] select-none"
-        >
-          <Users size={15} strokeWidth={1.75} />
-          <span>Desenvolvedores vinculados</span>
-          <SetaDropdown aberto={aberto} />
-        </button>
-
-        {aberto && (
-          <div className="absolute top-full left-0 mt-2 z-50 min-w-[220px] max-h-64 overflow-y-auto bg-[#191b1c] border border-[#2d2d2d] rounded-[12px] shadow-2xl py-1.5 font-['Poppins'] scrollbar-thin scrollbar-thumb-[#2d2d2d]">
-            {disponiveis.length === 0 ? (
-              <p className="px-4 py-2 text-sm text-[#5a5f5f]">Nenhum desenvolvedor disponível.</p>
-            ) : (
-              disponiveis.map((dev) => (
-                <OpcaoDropdown
-                  key={dev.id}
-                  label={dev.nome}
-                  selecionada={selecionados.includes(dev.id)}
-                  onClick={() => onToggle(dev.id)}
-                />
-              ))
-            )}
-          </div>
-        )}
-      </div>
-
-      {selecionados.map((id) => {
-        const dev = disponiveis.find((d) => d.id === id);
-        return <TagRemovivel key={id} label={dev?.nome ?? id} onRemove={() => onToggle(id)} />;
-      })}
+      <ChatLateral aberto={chatAberto} onFechar={() => setChatAberto(false)} />
     </div>
   );
 }
