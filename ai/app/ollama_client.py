@@ -11,10 +11,15 @@ class OllamaTimeout(Exception):
     pass
 
 
-async def ask(question: str) -> str:
+async def ask(question: str, system_prompt: str | None = None) -> str:
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": question})
+
     payload = {
         "model": settings.ai_model,
-        "messages": [{"role": "user", "content": question}],
+        "messages": messages,
         "think": settings.ai_think,
         "stream": False,
     }
@@ -27,13 +32,10 @@ async def ask(question: str) -> str:
     except httpx.HTTPError as exc:
         raise OllamaUnavailable(str(exc)) from exc
 
-    # Com think=true o raciocinio vem em message.thinking; a resposta final fica em message.content.
     return response.json()["message"]["content"]
 
 
 async def embed(texts: list[str], model: str) -> list[list[float]]:
-    # Rota confirmada em docs.ollama.com/api/embed: aceita lista em "input"
-    # e devolve "embeddings" (lista de listas, uma por texto).
     try:
         async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds) as client:
             response = await client.post(

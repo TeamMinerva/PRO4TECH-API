@@ -8,10 +8,6 @@ from lightrag.utils import wrap_embedding_func_with_attrs
 from app import ollama_client
 from app.config import settings
 
-# O LightRAG le o Postgres e o storage (kv/vector/graph/status) por variavel
-# de ambiente (LIGHTRAG_*_STORAGE, POSTGRES_*), nao por parametro do
-# construtor. Setar aqui garante que valem mesmo se alguem rodar o
-# processo fora do compose (ex.: testes locais).
 os.environ.setdefault("LIGHTRAG_KV_STORAGE", "PGKVStorage")
 os.environ.setdefault("LIGHTRAG_VECTOR_STORAGE", "PGVectorStorage")
 os.environ.setdefault("LIGHTRAG_GRAPH_STORAGE", "PGTableGraphStorage")
@@ -31,9 +27,7 @@ async def llm_model_func(
     keyword_extraction=False,
     **kwargs,
 ) -> str:
-    # Assinatura exigida pelo LightRAG (docs/ProgramingWithCore.md). Reaproveita
-    # o cliente do Ollama ja usado no /ask (SCRUM-30).
-    return await ollama_client.ask(prompt)
+    return await ollama_client.ask(prompt, system_prompt=system_prompt)
 
 
 @wrap_embedding_func_with_attrs(
@@ -57,11 +51,14 @@ def get_rag() -> LightRAG:
 
 async def startup() -> LightRAG:
     global rag_instance
-    # O LightRAG nao cria o working_dir sozinho (confirmado nos exemplos
-    # oficiais, que sempre fazem isso antes de instanciar a classe).
     Path(settings.lightrag_working_dir).mkdir(parents=True, exist_ok=True)
     rag_instance = LightRAG(
         working_dir=settings.lightrag_working_dir,
+        kv_storage="PGKVStorage",
+        vector_storage="PGVectorStorage",
+        graph_storage="PGTableGraphStorage",
+        doc_status_storage="PGDocStatusStorage",
+        workspace=settings.lightrag_workspace,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
     )
