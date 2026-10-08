@@ -1,7 +1,6 @@
 export interface Desenvolvedor {
   id: number;
   name: string;
-  skills?: string[];
 }
 
 export interface ProjetoSemelhante {
