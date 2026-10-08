@@ -1,0 +1,11 @@
+# GPU NVIDIA (requer NVIDIA Container Toolkit no host). Uso:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile ai up
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
