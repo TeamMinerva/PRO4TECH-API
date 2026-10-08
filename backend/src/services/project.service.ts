@@ -1,6 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import type { UpdateProjectData } from "../schemas/project.schema";
+import { IndexacaoService } from "./indexacao.service";
+
+const indexador = new IndexacaoService();
 
 interface CreatePBIData {
     title: string;
@@ -89,8 +92,9 @@ export async function createProject(data: CreateProjectData) {
                     }
                 }
             }
-
         });
+
+        indexador.atualizarProjetoNoRAG(project.id);
 
         return project;
     });
@@ -160,7 +164,7 @@ export async function getProjectById(id: number) {
         a.name.localeCompare(b.name)
     );
 
-    const techIds = project.technologies.map((t) => t.id);
+    const techIds = project.technologies.map((t: any) => t.id);
     let similarProjects: Array<{
         id: number;
         name: string;
@@ -193,22 +197,22 @@ export async function getProjectById(id: number) {
             },
         });
 
-        similarProjects = found.map((p) => ({
+        similarProjects = found.map((p: any) => ({
             id: p.id,
             name: p.name,
             status: p.status,
-            technologies: p.technologies.map((t) => t.name),
+            technologies: p.technologies.map((t: any) => t.name),
         }));
     }
 
-    const backlog = project.epics.flatMap((epic) =>
-        epic.features.flatMap((feature) =>
-            feature.pbis.map((pbi) => ({
+    const backlog = project.epics.flatMap((epic: any) =>
+        epic.features.flatMap((feature: any) =>
+            feature.pbis.map((pbi: any) => ({
                 id: pbi.id,
                 title: pbi.title,
                 userStory: pbi.userStory,
                 acceptanceCriteria: pbi.acceptanceCriteria,
-                developers: pbi.developers.map((dev) => ({
+                developers: pbi.developers.map((dev: any) => ({
                     id: dev.id,
                     name: dev.name,
                 })),
@@ -219,8 +223,8 @@ export async function getProjectById(id: number) {
     return {
         id: project.id,
         name: project.name,
-        technologies: project.technologies.map((t) => t.name),
-        technologyIds: project.technologies.map((t) => t.id),
+        technologies: project.technologies.map((t: any) => t.name),
+        technologyIds: project.technologies.map((t: any) => t.id),
         status: project.status,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
@@ -252,16 +256,16 @@ export async function updateProject(id: number, data: UpdateProjectData) {
             return null;
         }
 
-        const epicIds = new Set(existing.epics.map((e) => e.id));
-        const featureIds = new Set(existing.epics.flatMap((e) => e.features.map((f) => f.id)));
+        const epicIds = new Set(existing.epics.map((e: any) => e.id));
+        const featureIds = new Set(existing.epics.flatMap((e: any) => e.features.map((f: any) => f.id)));
         const pbiIds = new Set(
-            existing.epics.flatMap((e) => e.features.flatMap((f) => f.pbis.map((p) => p.id)))
+            existing.epics.flatMap((e: any) => e.features.flatMap((f: any) => f.pbis.map((p: any) => p.id)))
         );
 
-        const keptEpics = new Set(data.epics.map((e) => e.id));
-        const keptFeatures = new Set(data.epics.flatMap((e) => e.features.map((f) => f.id)));
+        const keptEpics = new Set(data.epics.map((e: any) => e.id));
+        const keptFeatures = new Set(data.epics.flatMap((e: any) => e.features.map((f: any) => f.id)));
         const keptPbis = new Set(
-            data.epics.flatMap((e) => e.features.flatMap((f) => f.pbis.map((p) => p.id)))
+            data.epics.flatMap((e: any) => e.features.flatMap((f: any) => f.pbis.map((p: any) => p.id)))
         );
 
         await tx.pBI.deleteMany({ where: { id: { in: [...pbiIds].filter((i) => !keptPbis.has(i)) } } });
@@ -308,7 +312,7 @@ export async function updateProject(id: number, data: UpdateProjectData) {
                         userStory: pbi.userStory,
                         acceptanceCriteria: pbi.acceptanceCriteria,
                     };
-                    const developers = pbi.developerIds.map((devId) => ({ id: devId }));
+                    const developers = pbi.developerIds.map((devId: any) => ({ id: devId }));
 
                     if (pbiIds.has(pbi.id)) {
                         await tx.pBI.update({
@@ -327,6 +331,8 @@ export async function updateProject(id: number, data: UpdateProjectData) {
                 }
             }
         }
+
+        indexador.atualizarProjetoNoRAG(id);
 
         return { id };
     });
