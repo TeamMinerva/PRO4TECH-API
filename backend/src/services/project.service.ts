@@ -35,34 +35,30 @@ interface CreateProjectData {
 }
 
 export async function createProject(data: CreateProjectData) {
-    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const project = await tx.project.create({
+    const project = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        return await tx.project.create({
             data: {
                 name: data.name,
                 technologies: {
                     connect: [...new Set(data.technologyIds)].map((id) => ({ id })),
                 },
                 status: data.status,
-
                 epics: {
                     create: data.epics.map((epic) => ({
                         name: epic.name,
                         description: epic.description,
                         objective: epic.objective,
                         expectedResult: epic.expectedResult,
-
                         features: {
                             create: epic.features.map((feature) => ({
                                 name: feature.name,
                                 description: feature.description,
                                 approvalCriteria: feature.approvalCriteria,
-
                                 pbis: {
                                     create: feature.pbis.map((pbi) => ({
                                         title: pbi.title,
                                         userStory: pbi.userStory,
                                         acceptanceCriteria: pbi.acceptanceCriteria,
-
                                         developers: {
                                             connect: pbi.developerIds.map((developerId) => ({
                                                 id: developerId,
@@ -75,7 +71,6 @@ export async function createProject(data: CreateProjectData) {
                     })),
                 }
             },
-
             include: {
                 technologies: true,
                 epics: {
@@ -93,11 +88,11 @@ export async function createProject(data: CreateProjectData) {
                 }
             }
         });
-
-        indexador.atualizarProjetoNoRAG(project.id);
-
-        return project;
     });
+
+    indexador.atualizarProjetoNoRAG(project.id);
+
+    return project;
 }
 
 export async function getProjectById(id: number) {
@@ -239,7 +234,7 @@ export async function getProjectById(id: number) {
 export const getProject = getProjectById;
 
 export async function updateProject(id: number, data: UpdateProjectData) {
-    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const existing = await tx.project.findUnique({
             where: { id },
             select: {
@@ -332,8 +327,12 @@ export async function updateProject(id: number, data: UpdateProjectData) {
             }
         }
 
-        indexador.atualizarProjetoNoRAG(id);
-
         return { id };
     });
+
+    if (result) {
+        indexador.atualizarProjetoNoRAG(id);
+    }
+
+    return result;
 }

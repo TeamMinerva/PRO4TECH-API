@@ -1,10 +1,8 @@
 import os
-
 import numpy as np
 from pathlib import Path
 from lightrag import LightRAG, QueryParam
 from lightrag.utils import wrap_embedding_func_with_attrs
-
 from app import ollama_client
 from app.config import settings
 
@@ -19,7 +17,6 @@ os.environ.setdefault("POSTGRES_PASSWORD", settings.postgres_password)
 os.environ.setdefault("POSTGRES_DATABASE", settings.postgres_database)
 os.environ.setdefault("WORKSPACE", settings.lightrag_workspace)
 
-
 async def llm_model_func(
     prompt,
     system_prompt=None,
@@ -28,7 +25,6 @@ async def llm_model_func(
     **kwargs,
 ) -> str:
     return await ollama_client.ask(prompt, system_prompt=system_prompt)
-
 
 @wrap_embedding_func_with_attrs(
     embedding_dim=settings.embedding_dim,
@@ -39,15 +35,12 @@ async def embedding_func(texts: list[str]) -> np.ndarray:
     vetores = await ollama_client.embed(texts, settings.embedding_model)
     return np.array(vetores)
 
-
 rag_instance: LightRAG | None = None
-
 
 def get_rag() -> LightRAG:
     if rag_instance is None:
         raise RuntimeError("LightRAG ainda nao foi inicializado.")
     return rag_instance
-
 
 async def startup() -> LightRAG:
     global rag_instance
@@ -65,17 +58,22 @@ async def startup() -> LightRAG:
     await rag_instance.initialize_storages()
     return rag_instance
 
-
 async def shutdown() -> None:
     global rag_instance
     if rag_instance is not None:
         await rag_instance.finalize_storages()
         rag_instance = None
 
-
-async def insert(text: str) -> None:
-    await get_rag().ainsert(text)
-
+async def insert(text: str, doc_id: str | None = None) -> None:
+    rag_instance = get_rag()
+    if doc_id:
+        try:
+            await rag_instance.adelete_by_doc_id(doc_id)
+        except Exception:
+            pass
+        await rag_instance.ainsert(text, ids=[doc_id])
+    else:
+        await rag_instance.ainsert(text)
 
 async def query(question: str, mode: str = "mix") -> str:
     return await get_rag().aquery(question, param=QueryParam(mode=mode))

@@ -1,7 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-import axios from 'axios';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
 
 export class IndexacaoService {
   async gerarEIndexarConhecimentoTotal() {
@@ -14,18 +11,22 @@ export class IndexacaoService {
         }
       });
 
-      let textoParaIA = "BASE DE CONHECIMENTO DO SISTEMA PRO4TECH:\n\n";
-
       for (const projeto of projetos) {
-        textoParaIA += this.formatarProjeto(projeto);
+        const textoParaIA = this.formatarProjeto(projeto);
+        await this.enviarParaLightRAG(textoParaIA, `projeto_${projeto.id}`);
       }
 
-      console.log("Texto estruturado gerado com sucesso!");
-      await this.enviarParaLightRAG(textoParaIA);
+      const desenvolvedores = await prisma.developer.findMany({
+        include: { technologies: true }
+      });
+
+      for (const dev of desenvolvedores) {
+        const textoDev = this.formatarDesenvolvedor(dev);
+        await this.enviarParaLightRAG(textoDev, `dev_${dev.id}`);
+      }
 
       return { success: true, message: "Indexação concluída." };
     } catch (error) {
-      console.error("Erro ao gerar indexação:", error);
       return { success: false, error };
     }
   }
@@ -43,12 +44,30 @@ export class IndexacaoService {
 
       if (projeto) {
         const textoAtualizado = this.formatarProjeto(projeto);
-        console.log(`Enviando atualização do projeto ${projeto.name} para o RAG...`);
-        await this.enviarParaLightRAG(textoAtualizado);
+        await this.enviarParaLightRAG(textoAtualizado, `projeto_${projeto.id}`);
       }
     } catch (error) {
-      console.error("Erro ao atualizar projeto no RAG:", error);
     }
+  }
+
+  async atualizarDesenvolvedorNoRAG(devId: number) {
+    try {
+      const dev = await prisma.developer.findUnique({
+        where: { id: devId },
+        include: { technologies: true }
+      });
+
+      if (dev) {
+        const textoDev = this.formatarDesenvolvedor(dev);
+        await this.enviarParaLightRAG(textoDev, `dev_${dev.id}`);
+      }
+    } catch (error) {
+    }
+  }
+
+  private formatarDesenvolvedor(dev: any): string {
+    const techsDev = dev.technologies.map((t: any) => t.name).join(", ");
+    return `\n--- DESENVOLVEDOR: ${dev.name} ---\nO desenvolvedor '${dev.name}' está com status ativo: ${dev.active}. Competências técnicas: ${techsDev || 'Nenhuma registrada'}.\n`;
   }
 
   private formatarProjeto(projeto: any): string {
@@ -61,7 +80,7 @@ export class IndexacaoService {
     }
 
     for (const epico of projeto.epics) {
-      texto += `Dentro do projeto '${projeto.name}', existe o Épico '${epico.name}'. Objetivo: ${epico.objective}. Resultado esperado: ${epico.expectedResult}.\n`;
+      texto += `Dentro do projeto '${projeto.name}', existe o Épico '${epico.name}'. Descrição: ${epico.description}. Objetivo: ${epico.objective}. Resultado esperado: ${epico.expectedResult}.\n`;
 
       for (const feature of epico.features) {
         texto += `O Épico '${epico.name}' possui a Feature '${feature.name}'. Descrição: ${feature.description}. Critérios: ${feature.approvalCriteria}.\n`;
@@ -79,14 +98,19 @@ export class IndexacaoService {
     return texto;
   }
 
-  private async enviarParaLightRAG(conteudo: string) {
+  private async enviarParaLightRAG(conteudo: string, docId: string) {
     try {
-      const urlFastAPI = process.env.LIGHTRAG_URL || 'http://localhost:8000/api/indexar';
-      await axios.post(urlFastAPI, { texto: conteudo });
-      console.log("Dados recebidos pela IA!");
+      const urlFastAPI = process.env.LIGHTRAG_URL || 'http://localhost:8000/knowledge';
+      
+      await fetch(urlFastAPI, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text: conteudo,
+          doc_id: docId
+        })
+      });
     } catch (error) {
-      console.log(conteudo.substring(0, 500) + "\n...[MENSAGEM CORTADA PARA NÃO POLUIR O TERMINAL]...");
-      console.log("A IA ainda não está online para receber os dados.");
     }
   }
 }

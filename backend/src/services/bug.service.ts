@@ -1,7 +1,8 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma";
 import { CreateBugInput } from "../schemas/bug.schema";
+import { IndexacaoService } from "./indexacao.service";
 
-const prisma = new PrismaClient();
+const indexador = new IndexacaoService();
 
 export async function createBug(data: CreateBugInput) {
   const project = await prisma.project.findUnique({
@@ -24,7 +25,7 @@ export async function createBug(data: CreateBugInput) {
     throw new Error("Desenvolvedor não encontrado");
   }
 
-  return prisma.bug.create({
+  const bug = await prisma.bug.create({
     data: {
       title: data.title,
       description: data.description,
@@ -33,4 +34,8 @@ export async function createBug(data: CreateBugInput) {
       developerId: data.developerId,
     },
   });
+
+  indexador.atualizarProjetoNoRAG(bug.projectId);
+
+  return bug;
 }

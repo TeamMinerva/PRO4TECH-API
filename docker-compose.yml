@@ -1,8 +1,5 @@
 services:
   postgres:
-    # pgvector/pgvector:pg16 = Postgres 16 + extensao pgvector pre-instalada
-    # (precisa do LightRAG, SCRUM-31). Mesma versao major do postgres:16
-    # anterior; o volume existente continua valido.
     image: pgvector/pgvector:pg16
     container_name: pro4tech-postgres
     restart: unless-stopped
@@ -26,6 +23,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/pro4tech
       PORT: 3000
+      LIGHTRAG_URL: http://ai:8000/knowledge
     ports:
       - "3000:3000"
     volumes:
@@ -49,7 +47,6 @@ services:
     depends_on:
       - backend
 
-  # ---- Servico de IA (so sobe com: docker compose --profile ai up) ----
   ollama:
     image: ollama/ollama
     container_name: pro4tech-ollama
@@ -79,7 +76,6 @@ services:
     restart: "no"
     environment:
       OLLAMA_HOST: ollama:11434
-    # Baixa o modelo de texto e o de embedding (LightRAG precisa dos dois).
     entrypoint:
       - sh
       - -c
@@ -102,8 +98,6 @@ services:
       AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-600}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
       EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
-      # Mesmo Postgres do backend/Prisma; o LightRAG usa tabelas proprias
-      # (prefixo LIGHTRAG_), sem precisar de banco ou schema separado.
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
