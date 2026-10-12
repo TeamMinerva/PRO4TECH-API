@@ -27,6 +27,7 @@ export class IndexacaoService {
 
       return { success: true, message: "Indexação concluída." };
     } catch (error) {
+      console.error("Aviso: falha ao gerar indexação total", error);
       return { success: false, error };
     }
   }
@@ -47,6 +48,7 @@ export class IndexacaoService {
         await this.enviarParaLightRAG(textoAtualizado, `projeto_${projeto.id}`);
       }
     } catch (error) {
+      console.error("Aviso: falha ao atualizar projeto no LightRAG", error);
     }
   }
 
@@ -62,6 +64,7 @@ export class IndexacaoService {
         await this.enviarParaLightRAG(textoDev, `dev_${dev.id}`);
       }
     } catch (error) {
+      console.error("Aviso: falha ao atualizar desenvolvedor no LightRAG", error);
     }
   }
 
@@ -111,6 +114,7 @@ export class IndexacaoService {
         })
       });
     } catch (error) {
+      console.error("Aviso: falha de rede ao comunicar com o LightRAG.", error);
     }
   }
 }

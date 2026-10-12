@@ -4,7 +4,7 @@ from app import rag
 async def test_insert_sucesso(client, monkeypatch):
     chamadas = []
 
-    async def fake_insert(text: str) -> None:
+    async def fake_insert(text: str, doc_id: str | None = None) -> None:
         chamadas.append(text)
 
     monkeypatch.setattr(rag, "insert", fake_insert)
