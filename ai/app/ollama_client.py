@@ -30,12 +30,12 @@ def limpar_resposta(texto: str) -> str:
     return texto.strip()
 
 
-async def chat(messages: list[dict[str, str]]) -> str:
+async def chat(messages: list[dict[str, str]], think: bool | None = None) -> str:
     """Envia uma conversa completa (system + historico + pergunta) ao Ollama."""
     payload = {
         "model": settings.ai_model,
         "messages": messages,
-        "think": settings.ai_think,
+        "think": settings.ai_think if think is None else think,
         "stream": False,
     }
     try:
@@ -53,12 +53,16 @@ async def chat(messages: list[dict[str, str]]) -> str:
     return limpar_resposta(content)
 
 
-async def ask(question: str, system_prompt: str | None = None) -> str:
+async def ask(
+    question: str,
+    system_prompt: str | None = None,
+    think: bool | None = None,
+) -> str:
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": question})
-    return await chat(messages)
+    return await chat(messages, think=think)
 
 
 async def embed(texts: list[str], model: str) -> list[list[float]]:

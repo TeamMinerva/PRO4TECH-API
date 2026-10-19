@@ -27,7 +27,7 @@ async def llm_model_func(
     keyword_extraction=False,
     **kwargs,
 ) -> str:
-    return await ollama_client.ask(prompt, system_prompt=system_prompt)
+    return await ollama_client.ask(prompt, system_prompt=system_prompt, think=False)
 
 
 @wrap_embedding_func_with_attrs(
@@ -73,8 +73,16 @@ async def shutdown() -> None:
         rag_instance = None
 
 
-async def insert(text: str) -> None:
-    await get_rag().ainsert(text)
+async def insert(text: str, doc_id: str | None = None) -> None:
+    rag_inst = get_rag()
+    if doc_id:
+        try:
+            await rag_inst.adelete_by_doc_id(doc_id)
+        except Exception:
+            pass
+        await rag_inst.ainsert(text, ids=[doc_id])
+    else:
+        await rag_inst.ainsert(text)
 
 
 async def query(question: str, mode: str = "mix") -> str:

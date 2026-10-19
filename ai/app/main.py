@@ -29,6 +29,7 @@ class AskResponse(BaseModel):
 
 class InsertRequest(BaseModel):
     text: str = Field(min_length=1)
+    doc_id: str | None = None
 
 
 class QueryRequest(BaseModel):
@@ -60,7 +61,7 @@ async def ask(body: AskRequest):
 async def insert_knowledge(body: InsertRequest):
     # Insere um texto no grafo+vetores do LightRAG (SCRUM-31). A rotina que
     # busca o dado do backend Node e monta esse texto e a SCRUM-32.
-    await rag.insert(body.text)
+    await rag.insert(body.text, doc_id=body.doc_id)
 
 
 @app.post("/knowledge/query", response_model=QueryResponse)

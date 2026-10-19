@@ -4,14 +4,14 @@ from app import rag
 async def test_insert_sucesso(client, monkeypatch):
     chamadas = []
 
-    async def fake_insert(text: str) -> None:
-        chamadas.append(text)
+    async def fake_insert(text: str, doc_id: str | None = None) -> None:
+        chamadas.append((text, doc_id))
 
     monkeypatch.setattr(rag, "insert", fake_insert)
 
-    resp = await client.post("/knowledge", json={"text": "Projeto X usa React."})
+    resp = await client.post("/knowledge", json={"text": "Projeto X usa React.", "doc_id": "projeto_1"})
     assert resp.status_code == 204
-    assert chamadas == ["Projeto X usa React."]
+    assert chamadas == [("Projeto X usa React.", "projeto_1")]
 
 
 async def test_insert_texto_vazio(client):
