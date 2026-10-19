@@ -36,6 +36,7 @@ export async function createBug(data: CreateBugInput) {
   });
 
   indexador.atualizarProjetoNoRAG(bug.projectId);
+  indexador.atualizarDesenvolvedorNoRAG(bug.developerId);
 
   return bug;
 }

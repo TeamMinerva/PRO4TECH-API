@@ -8,6 +8,7 @@ import { developerGalleryRoutes } from "./routes/developers-gallery.route";
 import { projectGalleryRoutes } from "./routes/projects-galley.route";
 import bugsRouter from "./routes/bug.route";
 import chatRoutes from "./routes/chat-project.routes";
+import generalChatRoutes from "./routes/general-chat.routes";
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use("/api/developers-gallery", developerGalleryRoutes)
 app.use('/api/projects-gallery', projectGalleryRoutes)
 app.use('/api/bugs', bugsRouter)
 app.use("/api/chat", chatRoutes)
+app.use("/api/chat", generalChatRoutes)
 
 app.use("/auth", authRoutes);
 app.use("/api/auth", authRoutes);
