@@ -1,4 +1,7 @@
 import { prisma } from "../lib/prisma";
+import { IndexacaoService } from "./indexacao.service";
+
+const indexador = new IndexacaoService();
 
 interface CreateDeveloperData {
   name: string;
@@ -7,7 +10,7 @@ interface CreateDeveloperData {
 }
 
 export async function createDeveloper(data: CreateDeveloperData) {
-  return await prisma.developer.create({
+  const developer = await prisma.developer.create({
     data: {
       name: data.name,
       technologies: {
@@ -17,6 +20,10 @@ export async function createDeveloper(data: CreateDeveloperData) {
     },
     include: { technologies: true },
   });
+
+  indexador.atualizarDesenvolvedorNoRAG(developer.id);
+
+  return developer;
 }
 
 export async function getDeveloper(id: number) {

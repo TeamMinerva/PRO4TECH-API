@@ -1,5 +1,5 @@
 import { ArrowLeft, Bug, ListTodo, MessageSquare, Pencil, Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BacklogEditavel } from '../components/BacklogEditavel';
 import { BotaoAba } from '../components/BotaoAba';
@@ -10,6 +10,7 @@ import { TagRemovivel } from '../components/TagRemovivel';
 import { useBacklogEditavel } from '../hooks/useBacklogEditavel';
 import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { STATUS_OPCOES } from '../hooks/useProjeto';
+import { criarEnviarChatProjeto } from '../services/chatService';
 import { getProjectById, type ProjetoDetalhes } from '../services/projectService';
 
 type Aba = 'bugs' | 'backlog';
@@ -28,6 +29,8 @@ export default function DetalhesProjeto() {
   const devsDisponiveis = useDesenvolvedores();
   const backlog = useBacklogEditavel();
   const { carregar: carregarBacklog } = backlog;
+  // Chat restrito a este projeto; troca junto com o id da rota.
+  const enviarChat = useMemo(() => criarEnviarChatProjeto(id ?? ''), [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -228,7 +231,20 @@ export default function DetalhesProjeto() {
         </button>
       )}
 
-      <ChatLateral aberto={chatAberto} onFechar={() => setChatAberto(false)} />
+      <ChatLateral
+        key={id}
+        aberto={chatAberto}
+        onFechar={() => setChatAberto(false)}
+        onEnviar={enviarChat}
+        titulo="Chat do projeto"
+        placeholder="Pergunte sobre este projeto."
+        mensagemBoasVindas="Tire dúvidas sobre épicos, features, PBIs e bugs deste projeto."
+        sugestoes={[
+          'Faça um resumo deste projeto.',
+          'Quais bugs foram registrados e como foram resolvidos?',
+          'Quais são os épicos e as features?',
+        ]}
+      />
 
       {modalBugAberto && projeto && (
         <ModalCadastroBug

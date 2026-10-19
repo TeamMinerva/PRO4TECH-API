@@ -79,3 +79,85 @@ async def insert(text: str) -> None:
 
 async def query(question: str, mode: str = "mix") -> str:
     return await get_rag().aquery(question, param=QueryParam(mode=mode))
+
+# --------------------------------------------------------------------------
+# Recuperacao de contexto restrita a UM projeto
+# --------------------------------------------------------------------------
+# O LightRAG (mix/local/global) consulta o grafo inteiro e nao filtra por
+# documento, o que misturaria dados de outros projetos na resposta. Como cada
+# projeto e indexado como um documento proprio (doc_id "projeto_<id>", veja
+# indexacao.service.ts no backend), buscamos so os chunks desse documento e
+# ranqueamos por similaridade com a pergunta usando os vetores ja gravados.
+# Efeito colateral bom: nenhuma chamada ao LLM na etapa de recuperacao.
+
+def doc_id_projeto(project_id: int) -> str:
+    return f"projeto_{project_id}"
+
+
+def _cosseno(a: np.ndarray, b: np.ndarray) -> float:
+    denom = float(np.linalg.norm(a) * np.linalg.norm(b))
+    return float(np.dot(a, b) / denom) if denom else 0.0
+
+
+async def recuperar_contexto_projeto(
+    project_id: int,
+    question: str,
+    max_chars: int | None = None,
+    top_k: int | None = None,
+) -> str:
+    max_chars = max_chars or settings.chat_context_max_chars
+    top_k = top_k or settings.chat_context_top_k
+
+    rag = get_rag()
+    status = await rag.doc_status.get_by_id(doc_id_projeto(project_id))
+    chunk_ids = list((status or {}).get("chunks_list") or [])
+    if not chunk_ids:
+        return ""
+
+    registros = await rag.text_chunks.get_by_ids(chunk_ids)
+    chunks = [
+        {
+            "id": cid,
+            "ordem": reg.get("chunk_order_index", 0),
+            "texto": reg["content"].strip(),
+        }
+        for cid, reg in zip(chunk_ids, registros)
+        if reg and reg.get("content", "").strip()
+    ]
+    if not chunks:
+        return ""
+    chunks.sort(key=lambda c: c["ordem"])
+
+    # Projeto pequeno: manda tudo, na ordem original.
+    if sum(len(c["texto"]) for c in chunks) <= max_chars:
+        return "\n\n".join(c["texto"] for c in chunks)
+
+    # Projeto grande: ranqueia por similaridade com a pergunta.
+    vetores = await rag.chunks_vdb.get_vectors_by_ids([c["id"] for c in chunks])
+    consulta = np.array((await embedding_func([question]))[0], dtype=float)
+
+    pontuados = sorted(
+        (
+            (_cosseno(consulta, np.array(vetores[c["id"]], dtype=float)), c)
+            for c in chunks
+            if c["id"] in vetores
+        ),
+        key=lambda par: par[0],
+        reverse=True,
+    )
+
+    # O primeiro chunk carrega o cabecalho (nome, status, tecnologias): sempre entra.
+    escolhidos = [chunks[0]]
+    usado = len(chunks[0]["texto"])
+    for _, chunk in pontuados:
+        if len(escolhidos) >= top_k:
+            break
+        if chunk in escolhidos:
+            continue
+        if usado + len(chunk["texto"]) > max_chars:
+            continue
+        escolhidos.append(chunk)
+        usado += len(chunk["texto"])
+
+    escolhidos.sort(key=lambda c: c["ordem"])
+    return "\n\n".join(c["texto"] for c in escolhidos)
