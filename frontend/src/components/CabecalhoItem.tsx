@@ -6,12 +6,13 @@ interface CabecalhoItemProps {
   rotulo: string;
   value: string;
   onChange: (valor: string) => void;
-  onRemover: () => void;
-  tituloExcluir: string;
+  onRemover?: () => void;
+  tituloExcluir?: string;
   tamanho: 'epico' | 'feature' | 'pbi';
   erro?: string;
   colapsado?: boolean;
   onAlternarColapso?: () => void;
+  somenteLeitura?: boolean;
 }
 
 const TAMANHOS = {
@@ -42,6 +43,7 @@ export function CabecalhoItem({
   erro,
   colapsado,
   onAlternarColapso,
+  somenteLeitura,
 }: CabecalhoItemProps) {
   const classes = TAMANHOS[tamanho];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -80,17 +82,20 @@ export function CabecalhoItem({
           rows={1}
           className={`w-full min-w-0 resize-none overflow-hidden bg-transparent ${classes.input} font-normal outline-none pb-1 leading-normal break-words font-['Outfit'] placeholder-[#3d3f40]`}
           value={value}
+          readOnly={somenteLeitura}
           onChange={(e) => onChange(e.target.value)}
         />
 
-        <button
-          type="button"
-          title={tituloExcluir}
-          onClick={onRemover}
-          className="shrink-0 text-[#5a5f5f] hover:text-[#ED6A32] transition-colors p-1"
-        >
-          <X size={classes.icone} strokeWidth={2} />
-        </button>
+        {onRemover && !somenteLeitura && (
+          <button
+            type="button"
+            title={tituloExcluir}
+            onClick={onRemover}
+            className="shrink-0 text-[#5a5f5f] hover:text-[#ED6A32] transition-colors p-1"
+          >
+            <X size={classes.icone} strokeWidth={2} />
+          </button>
+        )}
       </div>
       <ErroCampo mensagem={erro} />
     </div>

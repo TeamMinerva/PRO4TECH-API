@@ -74,12 +74,14 @@ const COR_STATUS: Record<string, string> = {
 };
 
 function ProjetoCard({ projeto }: { projeto: Projeto }) {
+  const navigate = useNavigate();
   const labelStatus =
     STATUS_OPCOES.find((opcao) => opcao.valor === projeto.status)?.label ?? projeto.status;
 
   return (
     <article
-      className="group flex w-[260px] items-center gap-[12px] rounded-[12px] bg-[#141617] px-[16px] py-[12px] transition-colors hover:bg-[#1c1e1f]"
+      onClick={() => navigate(`/projetos/${projeto.id}`)}
+      className="group flex w-[260px] cursor-pointer items-center gap-[12px] rounded-[12px] bg-[#141617] px-[16px] py-[12px] transition-colors hover:bg-[#1c1e1f]"
       data-node-id="248:85"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-[4px]">
@@ -102,7 +104,6 @@ function ProjetoCard({ projeto }: { projeto: Projeto }) {
         </span>
       </div>
 
-      {/* TODO: navegar para a página de detalhes do projeto */}
       <button
         type="button"
         aria-label={`Ver detalhes de ${projeto.name}`}

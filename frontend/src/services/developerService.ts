@@ -7,7 +7,7 @@ export interface Developer {
 export interface CreateDeveloperDTO {
   name: string;
   active: boolean;
-  skills: string[];
+  technologyIds: number[];
 }
 
 export interface ApiError {

@@ -3,8 +3,11 @@ import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import developerRoutes from './routes/developer.routes';
 import projectRoutes from "./routes/project.routes";
+import technologyRoutes from "./routes/technology.routes";
 import { developerGalleryRoutes } from "./routes/developers-gallery.route";
 import { projectGalleryRoutes } from "./routes/projects-galley.route";
+import bugsRouter from "./routes/bug.route";
+import chatRoutes from "./routes/chat-project.routes";
 
 const app = express();
 
@@ -13,8 +16,11 @@ app.use(express.json());
 
 app.use("/api/projects", projectRoutes);
 app.use('/api/developers', developerRoutes);
+app.use("/api/technologies", technologyRoutes);
 app.use("/api/developers-gallery", developerGalleryRoutes)
 app.use('/api/projects-gallery', projectGalleryRoutes)
+app.use('/api/bugs', bugsRouter)
+app.use("/api/chat", chatRoutes)
 
 app.use("/auth", authRoutes);
 app.use("/api/auth", authRoutes);

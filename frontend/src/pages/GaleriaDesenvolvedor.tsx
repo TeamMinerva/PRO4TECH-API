@@ -5,6 +5,11 @@ import {
   createDeveloper,
   type Developer,
 } from "../services/developerService";
+import { useDropdown } from "../hooks/useDropdown";
+import { useTecnologias } from "../hooks/useTecnologias";
+import { PainelTecnologias } from "../components/PainelTecnologias";
+import { SetaDropdown } from "../components/SetaDropdown";
+import { TagRemovivel } from "../components/TagRemovivel";
 
 type Desenvolvedor = Developer;
 
@@ -140,7 +145,16 @@ function ModalCadastroDesenvolvedor({
   const [nome, setNome] = useState("");
   // null = nada selecionado ainda -> dropdown mostra "Status"
   const [ativo, setAtivo] = useState<boolean | null>(null);
-  const [competencias, setCompetencias] = useState("");
+  const [tecnologiaIds, setTecnologiaIds] = useState<number[]>([]);
+  const gerenciadorTecnologias = useTecnologias();
+  const { tecnologias, carregando: carregandoTecnologias } = gerenciadorTecnologias;
+  const { aberto: techAberto, setAberto: setTechAberto, ref: techRef } = useDropdown();
+
+  function alternarTecnologia(id: number) {
+    setTecnologiaIds((atuais) =>
+      atuais.includes(id) ? atuais.filter((t) => t !== id) : [...atuais, id]
+    );
+  }
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -153,13 +167,8 @@ function ModalCadastroDesenvolvedor({
       return;
     }
 
-    const skillsArray = competencias
-      .split(/[\n,]+/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
-    if (skillsArray.length === 0) {
-      setErro("Informe ao menos uma competência técnica.");
+    if (tecnologiaIds.length === 0) {
+      setErro("Selecione ao menos uma tecnologia.");
       return;
     }
 
@@ -169,12 +178,12 @@ function ModalCadastroDesenvolvedor({
       await createDeveloper({
         name: nome,
         active: ativo,
-        skills: skillsArray,
+        technologyIds: tecnologiaIds,
       });
 
       setNome("");
       setAtivo(null);
-      setCompetencias("");
+      setTecnologiaIds([]);
       setErro(null);
 
       onCadastrado();
@@ -273,15 +282,48 @@ function ModalCadastroDesenvolvedor({
               className="mb-[6px] block text-[12px] text-[#9a9a9a]"
               style={{ fontFamily: "Poppins, sans-serif" }}
             >
-              Competências técnicas
+              Tecnologias
             </label>
-            <textarea
-              value={competencias}
-              onChange={(e) => setCompetencias(e.target.value)}
-              placeholder="Ex: React, Node.js, TypeScript"
-              className="h-[84px] w-full resize-none rounded-[8px] border border-[#2a2c2d] bg-[#1c1e1f] px-[14px] py-[10px] text-[14px] text-white placeholder-[#6b6b6b] outline-none focus:border-[#ed6a32]"
-              style={{ fontFamily: "Poppins, sans-serif" }}
-            />
+            <div className="relative" ref={techRef}>
+              <button
+                type="button"
+                onClick={() => setTechAberto(!techAberto)}
+                className="flex h-[40px] w-full cursor-pointer items-center justify-between rounded-[8px] border border-[#2a2c2d] bg-[#1c1e1f] px-[14px] text-[14px] text-[#6b6b6b] outline-none transition-colors hover:border-[#3f3f3f] focus:border-[#ed6a32]"
+                style={{ fontFamily: "Poppins, sans-serif" }}
+              >
+                <span>
+                  {carregandoTecnologias
+                    ? "Carregando tecnologias..."
+                    : "Selecione ou crie tecnologias"}
+                </span>
+                <SetaDropdown aberto={techAberto} />
+              </button>
+
+              {techAberto && (
+                <div
+                  className="absolute left-0 top-full z-50 mt-2 w-full rounded-[12px] border border-[#2d2d2d] bg-[#141617] py-1.5 shadow-2xl"
+                  style={{ fontFamily: "Poppins, sans-serif" }}
+                >
+                  <PainelTecnologias
+                    gerenciador={gerenciadorTecnologias}
+                    selecionadas={tecnologiaIds}
+                    onAlternar={alternarTecnologia}
+                  />
+                </div>
+              )}
+            </div>
+
+            {tecnologiaIds.length > 0 && (
+              <div className="mt-[10px] flex flex-wrap gap-[8px]">
+                {tecnologiaIds.map((id) => (
+                  <TagRemovivel
+                    key={id}
+                    label={tecnologias.find((t) => t.id === id)?.name ?? String(id)}
+                    onRemove={() => alternarTecnologia(id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {erro && <p className="text-[12px] text-[#ff641f]">{erro}</p>}

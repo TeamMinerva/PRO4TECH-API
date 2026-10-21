@@ -18,11 +18,21 @@ model User {
 model Developer {
     id           Int      @id @default(autoincrement())
     name         String
-    skills       String[]
+    technologies Technology[]
     active       Boolean  @default(true)
     createdAt    DateTime @default(now())
     updatedAt    DateTime @updatedAt
     pbis         PBI[]
+    bugs         Bug[]
+}
+
+model Technology {
+    id         Int         @id @default(autoincrement())
+    name       String      @unique
+    developers Developer[]
+    projects   Project[]
+    createdAt  DateTime    @default(now())
+    updatedAt  DateTime    @updatedAt
 }
 
 enum ProjectStatus {
@@ -34,9 +44,10 @@ enum ProjectStatus {
 model Project {
     id           Int           @id @default(autoincrement())
     name         String
-    technologies String[]
+    technologies Technology[]
     status       ProjectStatus @default(PLANNED)
     epics        Epic[]
+    bugs         Bug[]
     createdAt    DateTime      @default(now())
     updatedAt    DateTime      @updatedAt
 }
@@ -76,4 +87,18 @@ model PBI {
     developers         Developer[]
     createdAt          DateTime    @default(now())
     updatedAt          DateTime    @updatedAt
+}
+
+model Bug {
+    id          Int       @id @default(autoincrement())
+    title       String
+    description     String
+    solution    String
+    projectId   Int
+    developerId Int
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    project     Project   @relation(fields: [projectId], references: [id])
+    developer   Developer @relation(fields: [developerId], references: [id])
 }

@@ -24,11 +24,13 @@
     "jsonwebtoken": "^9.0.3",
     "prisma": "6.19",
     "process": "^0.11.10",
+    "undici": "^7.16.0",
     "zod": "^4.6.5"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "indexar": "tsx src/scripts/indexar-total.ts"
   }
 }
