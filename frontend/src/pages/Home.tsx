@@ -7,6 +7,11 @@ import type { FonteChat } from "../services/generalChatService";
 
 type Aba = "conversa" | "desenvolvedores" | "projetos";
 
+interface Conversa {
+  id: number;
+  title: string;
+}
+
 const ABAS: { id: Aba; label: string; path: string }[] = [
   { id: "conversa", label: "Conversa", path: "/home" },
   { id: "desenvolvedores", label: "Desenvolvedores", path: "/desenvolvedores" },
@@ -22,6 +27,10 @@ export default function Home() {
   const [historicoAberto, setHistoricoAberto] = useState(false);
   const [linksAberto, setLinksAberto] = useState(false);
 
+
+  const [conversas, setConversas] = useState<Conversa[]>([]);
+  const [conversaAtivaId, setConversaAtivaId] = useState<number | null>(null);
+
   const {
     mensagens,
     fontes,
@@ -29,17 +38,64 @@ export default function Home() {
     erro,
     enviarMensagem,
     tentarNovamente,
-  } = useGeneralChat();
+  } = useGeneralChat(conversaAtivaId);
 
   const fimDaLista = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("http://localhost:3000/api/conversations")
+      .then(res => res.json())
+      .then((data: Conversa[]) => {
+          setConversas(data);
+          if (data.length > 0 && !conversaAtivaId) {
+              setConversaAtivaId(data[0].id);
+          }
+      })
+      .catch(err => console.error("Erro ao carregar conversas", err));
+  }, []);
 
   useEffect(() => {
     fimDaLista.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [mensagens, enviando, erro]);
 
-  function enviar(conteudo: string) {
+  async function iniciarNovaConversa() {
+    try {
+      const res = await fetch("http://localhost:3000/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Nova Conversa" })
+      });
+      const nova: Conversa = await res.json();
+      setConversas((prev: Conversa[]) => [nova, ...prev]);
+      setConversaAtivaId(nova.id);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function enviar(conteudo: string) {
     if (!conteudo.trim() || enviando) return;
-    enviarMensagem(conteudo);
+    
+    let idParaUsar = conversaAtivaId;
+    if (!idParaUsar) {
+      try {
+        const titulo = conteudo.length > 25 ? conteudo.substring(0, 25) + "..." : conteudo;
+        const res = await fetch("http://localhost:3000/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: titulo })
+        });
+        const nova: Conversa = await res.json();
+        setConversas((prev: Conversa[]) => [nova, ...prev]);
+        setConversaAtivaId(nova.id);
+        idParaUsar = nova.id;
+      } catch (err) {
+        console.error(err);
+        return;
+      }
+    }
+
+    enviarMensagem(conteudo, idParaUsar);
     setMensagem("");
   }
 
@@ -96,12 +152,42 @@ export default function Home() {
               <X size={22} />
             </button>
           </div>
-          <p
-            className="px-6 text-[15px] text-[#3d3f40]"
-            style={{ fontFamily: "Poppins, sans-serif" }}
-          >
-            Nenhuma conversa ainda.
-          </p>
+          
+          <div className="px-6 pb-4">
+            <button 
+              onClick={iniciarNovaConversa} 
+              className="w-full rounded-[10px] border border-[#2d2d2d] bg-[#1c1e1f] py-2 text-[14px] text-white transition-colors hover:bg-[#2d2d2d]" 
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              + Nova conversa
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-thin scrollbar-thumb-[#2d2d2d]">
+            {conversas.length === 0 ? (
+              <p
+                className="px-2 text-[15px] text-[#3d3f40]"
+                style={{ fontFamily: "Poppins, sans-serif" }}
+              >
+                Nenhuma conversa ainda.
+              </p>
+            ) : (
+              conversas.map(conv => (
+                <button
+                  key={conv.id}
+                  onClick={() => setConversaAtivaId(conv.id)}
+                  className={`mb-2 w-full truncate rounded-[10px] px-4 py-3 text-left text-[14px] transition-colors ${
+                    conversaAtivaId === conv.id
+                      ? "bg-[#2d2d2d] text-[#ed6a32]"
+                      : "text-[#d6d6d6] hover:bg-[#1c1e1f]"
+                  }`}
+                  style={{ fontFamily: "Poppins, sans-serif" }}
+                >
+                  {conv.title}
+                </button>
+              ))
+            )}
+          </div>
         </div>
       </aside>
 

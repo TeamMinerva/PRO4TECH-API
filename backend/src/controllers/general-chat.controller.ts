@@ -1,24 +1,34 @@
 import { Request, Response } from "express";
-import { generalChatBodySchema } from "../schemas/general-chat.schema";
-import { GeneralChatServiceError, perguntarChatGeral } from "../services/general-chat.service";
+import { addMessage } from "../services/conversation.service";
 
 export async function chatGeralController(req: Request, res: Response) {
-  const body = generalChatBodySchema.safeParse(req.body);
-  if (!body.success) {
-    return res.status(400).json({
-      message: body.error.issues[0]?.message || "Mensagem inválida.",
-      errors: body.error.flatten().fieldErrors,
-    });
-  }
+    try {
+        const { question, conversationId } = req.body;
+        
+        if (conversationId) {
+            await addMessage(Number(conversationId), "user", question);
+        }
 
-  try {
-    const resultado = await perguntarChatGeral(body.data.question, body.data.history);
-    return res.status(200).json(resultado);
-  } catch (error) {
-    if (error instanceof GeneralChatServiceError) {
-      return res.status(error.status).json({ message: error.message });
+        const aiUrl = process.env.LIGHTRAG_URL?.replace('/knowledge', '/knowledge/query') || 'http://localhost:8000/knowledge/query';
+        const response = await fetch(aiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, mode: "mix" })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Falha na IA: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        if (conversationId) {
+            await addMessage(Number(conversationId), "assistant", data.answer);
+        }
+
+        return res.json({ answer: data.answer, fontes: data.fontes || [] });
+    } catch (error) {
+        console.error("Erro no chat geral:", error);
+        return res.status(500).json({ error: "Erro interno no servidor de chat." });
     }
-    console.error("Erro inesperado no chat geral:", error);
-    return res.status(500).json({ message: "Erro interno ao processar o chat." });
-  }
 }
