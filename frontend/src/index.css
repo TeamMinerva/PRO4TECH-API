@@ -2,6 +2,7 @@
 
 html,
 body {
+  color-scheme: dark;
   overflow-x: hidden;
   background-color: #191b1c;
 }
@@ -14,4 +15,53 @@ input:-webkit-autofill:active {
   -webkit-text-fill-color: #ffffff !important;
   caret-color: #ffffff;
   transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Scrollbar customizada moderna */
+.scroller,
+.scrollbar-thin {
+  --scrollbar-thumb: #2d2d2d;
+  --scrollbar-thumb-hover: #3d3f40;
+  --scrollbar-track: transparent;
+}
+
+/* Firefox: propriedades padrão sem setas nativas */
+@supports (-moz-appearance: none) {
+
+  .scroller,
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+}
+
+/* Chromium (Chrome, Edge, Opera, Brave) e WebKit (Safari):
+   Remove as setas (buttons), define largura de 8px e cantos arredondados */
+.scroller::-webkit-scrollbar,
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scroller::-webkit-scrollbar-button,
+.scrollbar-thin::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.scroller::-webkit-scrollbar-track,
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.scroller::-webkit-scrollbar-thumb,
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+.scroller::-webkit-scrollbar-thumb:hover,
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
