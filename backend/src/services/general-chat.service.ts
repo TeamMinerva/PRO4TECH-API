@@ -5,8 +5,17 @@ import type { GeneralChatMessage } from "../schemas/general-chat.schema";
 const AI_URL = (process.env.AI_URL || "http://localhost:8000").replace(/\/$/, "");
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 1520000;
 
-function postJson(url: string, body: unknown, timeoutMs: number): Promise<{ status: number; data: unknown }> {
+function postJson(
+  url: string,
+  body: unknown,
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<{ status: number; data: unknown }> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      return reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    }
+
     const alvo = new URL(url);
     const payload = JSON.stringify(body);
     const cliente = alvo.protocol === "https:" ? https : http;
@@ -37,6 +46,12 @@ function postJson(url: string, body: unknown, timeoutMs: number): Promise<{ stat
       },
     );
 
+    const onAbort = () => {
+      req.destroy(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    req.on("close", () => signal?.removeEventListener("abort", onAbort));
     req.on("timeout", () => req.destroy(Object.assign(new Error("timeout"), { name: "TimeoutError" })));
     req.on("error", reject);
     req.write(payload);
@@ -73,11 +88,20 @@ export interface GeneralChatResult {
 export async function perguntarChatGeral(
   question: string,
   history: GeneralChatMessage[],
+  signal?: AbortSignal,
 ): Promise<GeneralChatResult> {
   let resposta;
   try {
-    resposta = await postJson(`${AI_URL}/chat/general`, { question, history }, AI_TIMEOUT_MS);
+    resposta = await postJson(
+      `${AI_URL}/chat/general`,
+      { question, history },
+      AI_TIMEOUT_MS,
+      signal,
+    );
   } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw error;
+    }
     if (error instanceof Error && error.name === "TimeoutError") {
       throw new GeneralChatServiceError("A IA demorou demais para responder. Tente novamente.", 504);
     }

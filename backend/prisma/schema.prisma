@@ -104,20 +104,21 @@ model Bug {
 }
 
 model Conversation {
-  id        Int       @id @default(autoincrement())
-  title     String    @default("Nova Conversa")
-  userId    Int
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  Message[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+    id        Int       @id @default(autoincrement())
+    title     String    @default("Nova Conversa")
+    userId    Int?
+    user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    messages  Message[]
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @updatedAt
 }
 
 model Message {
-  id             Int          @id @default(autoincrement())
-  content        String       @db.Text
-  role           String
-  conversationId Int
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime     @default(now())
+    id             Int          @id @default(autoincrement())
+    content        String       @db.Text
+    role           String
+    sources        Json?
+    conversationId Int
+    conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+    createdAt      DateTime     @default(now())
 }

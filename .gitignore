@@ -57,6 +57,7 @@ coverage/
 
 *.pid
 *.pid.lock
+docker-compose.override.yml
 
 # ==========================================
 # IDE / Editor

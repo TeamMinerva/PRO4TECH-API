@@ -28,7 +28,7 @@
     "zod": "^4.6.5"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "npx prisma generate && npx prisma migrate deploy && tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "indexar": "tsx src/scripts/indexar-total.ts"

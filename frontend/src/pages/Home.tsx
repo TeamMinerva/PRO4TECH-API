@@ -7,11 +7,6 @@ import type { FonteChat } from "../services/generalChatService";
 
 type Aba = "conversa" | "desenvolvedores" | "projetos";
 
-interface Conversa {
-  id: number;
-  title: string;
-}
-
 const ABAS: { id: Aba; label: string; path: string }[] = [
   { id: "conversa", label: "Conversa", path: "/home" },
   { id: "desenvolvedores", label: "Desenvolvedores", path: "/desenvolvedores" },
@@ -27,75 +22,29 @@ export default function Home() {
   const [historicoAberto, setHistoricoAberto] = useState(false);
   const [linksAberto, setLinksAberto] = useState(false);
 
-
-  const [conversas, setConversas] = useState<Conversa[]>([]);
-  const [conversaAtivaId, setConversaAtivaId] = useState<number | null>(null);
-
   const {
+    conversas,
+    conversaAtivaId,
     mensagens,
     fontes,
     enviando,
+    carregandoConversa,
     erro,
     enviarMensagem,
     tentarNovamente,
-  } = useGeneralChat(conversaAtivaId);
+    selecionarConversa,
+    iniciarNovaConversa,
+  } = useGeneralChat();
 
   const fimDaLista = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    fetch("http://localhost:3000/api/conversations")
-      .then(res => res.json())
-      .then((data: Conversa[]) => {
-          setConversas(data);
-          if (data.length > 0 && !conversaAtivaId) {
-              setConversaAtivaId(data[0].id);
-          }
-      })
-      .catch(err => console.error("Erro ao carregar conversas", err));
-  }, []);
 
   useEffect(() => {
     fimDaLista.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [mensagens, enviando, erro]);
 
-  async function iniciarNovaConversa() {
-    try {
-      const res = await fetch("http://localhost:3000/api/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "Nova Conversa" })
-      });
-      const nova: Conversa = await res.json();
-      setConversas((prev: Conversa[]) => [nova, ...prev]);
-      setConversaAtivaId(nova.id);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function enviar(conteudo: string) {
-    if (!conteudo.trim() || enviando) return;
-    
-    let idParaUsar = conversaAtivaId;
-    if (!idParaUsar) {
-      try {
-        const titulo = conteudo.length > 25 ? conteudo.substring(0, 25) + "..." : conteudo;
-        const res = await fetch("http://localhost:3000/api/conversations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: titulo })
-        });
-        const nova: Conversa = await res.json();
-        setConversas((prev: Conversa[]) => [nova, ...prev]);
-        setConversaAtivaId(nova.id);
-        idParaUsar = nova.id;
-      } catch (err) {
-        console.error(err);
-        return;
-      }
-    }
-
-    enviarMensagem(conteudo, idParaUsar);
+  function enviar(conteudo: string) {
+    if (!conteudo.trim() || enviando || carregandoConversa) return;
+    enviarMensagem(conteudo);
     setMensagem("");
   }
 
@@ -121,8 +70,9 @@ export default function Home() {
     return "Documento";
   }
 
-  const vazio = mensagens.length === 0;
-  const podeEnviar = mensagem.trim().length > 0 && !enviando;
+  const vazio = mensagens.length === 0 && !carregandoConversa && !erro;
+  const podeEnviar =
+    mensagem.trim().length > 0 && !enviando && !carregandoConversa;
 
   return (
     <div
@@ -131,6 +81,7 @@ export default function Home() {
       data-name="inicial"
     >
       <aside
+        inert={!historicoAberto}
         className={`shrink-0 overflow-hidden rounded-[16px] bg-[#141617] transition-[width] duration-300 ${
           historicoAberto ? "w-[280px] sm:w-[320px]" : "w-0"
         }`}
@@ -152,11 +103,12 @@ export default function Home() {
               <X size={22} />
             </button>
           </div>
-          
+
           <div className="px-6 pb-4">
-            <button 
-              onClick={iniciarNovaConversa} 
-              className="w-full rounded-[10px] border border-[#2d2d2d] bg-[#1c1e1f] py-2 text-[14px] text-white transition-colors hover:bg-[#2d2d2d]" 
+            <button
+              type="button"
+              onClick={() => void iniciarNovaConversa()}
+              className="w-full rounded-[10px] border border-[#2d2d2d] bg-[#1c1e1f] py-2 text-[14px] text-white transition-colors hover:bg-[#2d2d2d]"
               style={{ fontFamily: "Poppins, sans-serif" }}
             >
               + Nova conversa
@@ -172,10 +124,11 @@ export default function Home() {
                 Nenhuma conversa ainda.
               </p>
             ) : (
-              conversas.map(conv => (
+              conversas.map((conv) => (
                 <button
                   key={conv.id}
-                  onClick={() => setConversaAtivaId(conv.id)}
+                  type="button"
+                  onClick={() => void selecionarConversa(conv.id)}
                   className={`mb-2 w-full truncate rounded-[10px] px-4 py-3 text-left text-[14px] transition-colors ${
                     conversaAtivaId === conv.id
                       ? "bg-[#2d2d2d] text-[#ed6a32]"
@@ -267,6 +220,15 @@ export default function Home() {
             </p>
           ) : (
             <div className="mt-auto flex flex-col gap-4 py-2">
+              {carregandoConversa && (
+                <div
+                  className="flex items-center gap-2 self-start rounded-[14px] bg-[#2d2d2d] px-4 py-3 text-[14px] text-[#9a9fa0]"
+                  role="status"
+                >
+                  Carregando mensagens...
+                </div>
+              )}
+
               {mensagens.map((msg) => (
                 <div
                   key={msg.id}
@@ -358,7 +320,7 @@ export default function Home() {
               placeholder="Pergunte sobre projetos, desenvolvedores, épicos, PBIs ou bugs..."
               aria-label="Digite uma mensagem."
               maxLength={TAMANHO_MAXIMO}
-              disabled={enviando}
+              disabled={enviando || carregandoConversa}
               value={mensagem}
               onChange={(e) => setMensagem(e.target.value)}
               className="w-full bg-transparent border-0 p-0 m-0 text-[14px] text-white placeholder-[#3d3f40] outline-none disabled:opacity-60 sm:text-[16px] lg:text-[17px]"
