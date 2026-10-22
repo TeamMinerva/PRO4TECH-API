@@ -4,6 +4,7 @@ import { UserPayload } from "../@types/express";
 import {
   conversationParamsSchema,
   createConversationSchema,
+  updateConversationSchema,
 } from "../schemas/conversation.schema";
 import * as conversationService from "../services/conversation.service";
 
@@ -80,5 +81,60 @@ export async function getMessagesController(req: Request, res: Response) {
   } catch (error) {
     console.error("Erro ao buscar mensagens da conversa:", error);
     return res.status(500).json({ message: "Erro ao buscar mensagens." });
+  }
+}
+
+export async function updateConversationController(req: Request, res: Response) {
+  const params = conversationParamsSchema.safeParse(req.params);
+  if (!params.success) {
+    return res.status(400).json({
+      message: params.error.issues[0]?.message || "Identificador da conversa inválido.",
+    });
+  }
+
+  const body = updateConversationSchema.safeParse(req.body ?? {});
+  if (!body.success) {
+    return res.status(400).json({
+      message: body.error.issues[0]?.message || "Título inválido.",
+      errors: body.error.flatten().fieldErrors,
+    });
+  }
+
+  try {
+    const conversa = await conversationService.getConversationById(params.data.id);
+    if (!conversa) {
+      return res.status(404).json({ message: "Conversa não encontrada." });
+    }
+
+    const atualizada = await conversationService.updateConversationTitle(
+      params.data.id,
+      body.data.title,
+    );
+    return res.status(200).json(atualizada);
+  } catch (error) {
+    console.error("Erro ao renomear conversa:", error);
+    return res.status(500).json({ message: "Erro ao renomear conversa." });
+  }
+}
+
+export async function deleteConversationController(req: Request, res: Response) {
+  const params = conversationParamsSchema.safeParse(req.params);
+  if (!params.success) {
+    return res.status(400).json({
+      message: params.error.issues[0]?.message || "Identificador da conversa inválido.",
+    });
+  }
+
+  try {
+    const conversa = await conversationService.getConversationById(params.data.id);
+    if (!conversa) {
+      return res.status(404).json({ message: "Conversa não encontrada." });
+    }
+
+    await conversationService.deleteConversation(params.data.id);
+    return res.status(204).send();
+  } catch (error) {
+    console.error("Erro ao excluir conversa:", error);
+    return res.status(500).json({ message: "Erro ao excluir conversa." });
   }
 }

@@ -45,6 +45,21 @@ export async function getConversationById(conversationId: number) {
   });
 }
 
+export async function updateConversationTitle(conversationId: number, title: string) {
+  return prisma.conversation.update({
+    where: { id: conversationId },
+    data: {
+      title: title.trim(),
+    },
+  });
+}
+
+export async function deleteConversation(conversationId: number) {
+  return prisma.conversation.delete({
+    where: { id: conversationId },
+  });
+}
+
 export async function getConversationMessages(conversationId: number) {
   return prisma.message.findMany({
     where: { conversationId },

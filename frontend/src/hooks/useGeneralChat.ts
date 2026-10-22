@@ -3,7 +3,9 @@ import {
   buscarMensagensConversa,
   criarConversa,
   enviarChatGeral,
+  excluirConversa as excluirConversaApi,
   listarConversas,
+  renomearConversa as renomearConversaApi,
   type ConversaResumo,
   type FonteChat,
   type MensagemChatGeral,
@@ -133,6 +135,34 @@ export function useGeneralChat() {
       );
     }
   }, [atualizarMensagens, definirConversaAtiva]);
+
+  const renomearConversa = useCallback(async (id: number, novoTitulo: string) => {
+    const limpo = novoTitulo.trim();
+    if (!limpo) return;
+
+    const atualizada = await renomearConversaApi(id, limpo);
+    setConversas((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title: atualizada.title } : c)),
+    );
+  }, []);
+
+  const excluirConversa = useCallback(
+    async (id: number) => {
+      await excluirConversaApi(id);
+
+      setConversas((prev) => prev.filter((c) => c.id !== id));
+
+      if (conversaAtivaIdRef.current === id) {
+        controlador.current?.abort();
+        definirConversaAtiva(null);
+        atualizarMensagens([]);
+        setEnviando(false);
+        setCarregandoConversa(false);
+        setErro(null);
+      }
+    },
+    [atualizarMensagens, definirConversaAtiva],
+  );
 
   const perguntar = useCallback(
     async (
@@ -270,5 +300,7 @@ export function useGeneralChat() {
     tentarNovamente,
     selecionarConversa,
     iniciarNovaConversa,
+    renomearConversa,
+    excluirConversa,
   };
 }

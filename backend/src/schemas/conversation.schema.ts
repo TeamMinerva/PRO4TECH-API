@@ -9,6 +9,14 @@ export const createConversationSchema = z.object({
     .optional(),
 });
 
+export const updateConversationSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "O título da conversa não pode ser vazio.")
+    .max(120, "O título deve ter no máximo 120 caracteres."),
+});
+
 export const conversationParamsSchema = z.object({
   id: z.coerce
     .number({ message: "O identificador da conversa deve ser um número inteiro positivo." })
@@ -18,4 +26,5 @@ export const conversationParamsSchema = z.object({
 });
 
 export type CreateConversationInput = z.infer<typeof createConversationSchema>;
+export type UpdateConversationInput = z.infer<typeof updateConversationSchema>;
 export type ConversationParams = z.infer<typeof conversationParamsSchema>;

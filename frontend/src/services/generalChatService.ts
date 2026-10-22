@@ -127,6 +127,58 @@ export async function buscarMensagensConversa(
   return Array.isArray(dados) ? (dados as MensagemConversaSalva[]) : [];
 }
 
+export async function renomearConversa(
+  conversaId: number,
+  titulo: string,
+): Promise<ConversaResumo> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/conversations/${conversaId}`, {
+      method: 'PATCH',
+      headers: montarHeaders(true),
+      body: JSON.stringify({ title: titulo }),
+    });
+  } catch (err) {
+    throw new Error('Não foi possível renomear a conversa.', { cause: err });
+  }
+
+  if (!response.ok) {
+    let mensagem = 'Erro ao renomear conversa.';
+    try {
+      const dados = await response.json();
+      if (dados?.message) mensagem = dados.message;
+    } catch {
+      // mantém a mensagem padrão
+    }
+    throw new Error(mensagem);
+  }
+
+  return (await response.json()) as ConversaResumo;
+}
+
+export async function excluirConversa(conversaId: number): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/conversations/${conversaId}`, {
+      method: 'DELETE',
+      headers: montarHeaders(),
+    });
+  } catch (err) {
+    throw new Error('Não foi possível excluir a conversa.', { cause: err });
+  }
+
+  if (!response.ok) {
+    let mensagem = 'Erro ao excluir conversa.';
+    try {
+      const dados = await response.json();
+      if (dados?.message) mensagem = dados.message;
+    } catch {
+      // mantém a mensagem padrão
+    }
+    throw new Error(mensagem);
+  }
+}
+
 export async function enviarChatGeral(
   pergunta: string,
   historico: MensagemChatGeral[],

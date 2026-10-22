@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { History, Link2, X, ArrowUp } from "lucide-react";
+import { History, Link2, X, ArrowUp, Pencil, Trash2, Check } from "lucide-react";
 import { useGeneralChat } from "../hooks/useGeneralChat";
 import { MensagemMarkdown } from "../components/MensagemMarkdown";
 import type { FonteChat } from "../services/generalChatService";
@@ -21,6 +21,8 @@ export default function Home() {
   const [mensagem, setMensagem] = useState("");
   const [historicoAberto, setHistoricoAberto] = useState(false);
   const [linksAberto, setLinksAberto] = useState(false);
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [tituloEdicao, setTituloEdicao] = useState("");
 
   const {
     conversas,
@@ -34,6 +36,8 @@ export default function Home() {
     tentarNovamente,
     selecionarConversa,
     iniciarNovaConversa,
+    renomearConversa,
+    excluirConversa,
   } = useGeneralChat();
 
   const fimDaLista = useRef<HTMLDivElement>(null);
@@ -41,6 +45,31 @@ export default function Home() {
   useEffect(() => {
     fimDaLista.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [mensagens, enviando, erro]);
+
+  function iniciarEdicao(conv: { id: number; title: string }) {
+    setEditandoId(conv.id);
+    setTituloEdicao(conv.title);
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setTituloEdicao("");
+  }
+
+  function confirmarEdicao(id: number) {
+    const limpo = tituloEdicao.trim();
+    if (limpo) {
+      void renomearConversa(id, limpo);
+    }
+    cancelarEdicao();
+  }
+
+  function removerConversa(id: number) {
+    if (editandoId === id) {
+      cancelarEdicao();
+    }
+    void excluirConversa(id);
+  }
 
   function enviar(conteudo: string) {
     if (!conteudo.trim() || enviando || carregandoConversa) return;
@@ -115,7 +144,7 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-thin scrollbar-thumb-[#2d2d2d]">
+          <div className="scroller flex-1 overflow-y-auto px-4 pb-4">
             {conversas.length === 0 ? (
               <p
                 className="px-2 text-[15px] text-[#3d3f40]"
@@ -124,21 +153,94 @@ export default function Home() {
                 Nenhuma conversa ainda.
               </p>
             ) : (
-              conversas.map((conv) => (
-                <button
-                  key={conv.id}
-                  type="button"
-                  onClick={() => void selecionarConversa(conv.id)}
-                  className={`mb-2 w-full truncate rounded-[10px] px-4 py-3 text-left text-[14px] transition-colors ${
-                    conversaAtivaId === conv.id
-                      ? "bg-[#2d2d2d] text-[#ed6a32]"
-                      : "text-[#d6d6d6] hover:bg-[#1c1e1f]"
-                  }`}
-                  style={{ fontFamily: "Poppins, sans-serif" }}
-                >
-                  {conv.title}
-                </button>
-              ))
+              conversas.map((conv) => {
+                const ativa = conversaAtivaId === conv.id;
+                const editando = editandoId === conv.id;
+
+                return (
+                  <div
+                    key={conv.id}
+                    className={`mb-2 flex w-full items-center justify-between gap-2 rounded-[10px] px-4 py-3 text-[14px] transition-colors ${
+                      ativa
+                        ? "bg-[#2d2d2d] text-[#ed6a32]"
+                        : "text-[#d6d6d6] hover:bg-[#1c1e1f]"
+                    }`}
+                    style={{ fontFamily: "Poppins, sans-serif" }}
+                  >
+                    {editando ? (
+                      <>
+                        <input
+                          type="text"
+                          autoFocus
+                          maxLength={120}
+                          value={tituloEdicao}
+                          onChange={(e) => setTituloEdicao(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              confirmarEdicao(conv.id);
+                            } else if (e.key === "Escape") {
+                              cancelarEdicao();
+                            }
+                          }}
+                          aria-label="Novo nome da conversa"
+                          className="min-w-0 flex-1 border-b border-[#ed6a32] bg-transparent text-[14px] text-white outline-none"
+                        />
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => confirmarEdicao(conv.id)}
+                            aria-label="Salvar nome da conversa"
+                            title="Salvar"
+                            className="text-[#5a5f5f] transition-colors hover:text-[#ED6A32]"
+                          >
+                            <Check size={16} strokeWidth={1.75} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelarEdicao}
+                            aria-label="Cancelar edição"
+                            title="Cancelar"
+                            className="text-[#5a5f5f] transition-colors hover:text-white"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void selecionarConversa(conv.id)}
+                          className="min-w-0 flex-1 truncate text-left"
+                        >
+                          {conv.title}
+                        </button>
+                        <div className="flex shrink-0 items-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicao(conv)}
+                            aria-label={`Renomear conversa ${conv.title}`}
+                            title="Renomear conversa"
+                            className="text-[#5a5f5f] transition-colors hover:text-[#ED6A32]"
+                          >
+                            <Pencil size={15} strokeWidth={1.75} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removerConversa(conv.id)}
+                            aria-label={`Excluir conversa ${conv.title}`}
+                            title="Excluir conversa"
+                            className="text-[#5a5f5f] transition-colors hover:text-white"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -206,7 +308,7 @@ export default function Home() {
           className={`my-4 flex min-h-0 flex-1 flex-col ${
             vazio
               ? "items-center justify-center gap-6"
-              : "overflow-y-auto pr-1"
+              : "scroller overflow-y-auto pr-1"
           }`}
           style={{ fontFamily: "Poppins, sans-serif" }}
         >
@@ -375,7 +477,7 @@ export default function Home() {
             </p>
           ) : (
             <div
-              className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-6 pb-6"
+              className="scroller flex flex-1 flex-col gap-2.5 overflow-y-auto px-6 pb-6"
               style={{ fontFamily: "Poppins, sans-serif" }}
             >
               {fontes.map((fonte) => {
