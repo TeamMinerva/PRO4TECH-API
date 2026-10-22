@@ -1,94 +1,108 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { IdCard, X } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { ArrowUpRight, X } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
-  getDevelopersGallery,
   createDeveloper,
+  getDevelopersGallery,
   type Developer,
 } from "../services/developerService";
 import { useDropdown } from "../hooks/useDropdown";
 import { useTecnologias } from "../hooks/useTecnologias";
 import { PainelTecnologias } from "../components/PainelTecnologias";
-import { SetaDropdown } from "../components/SetaDropdown";
 import { TagRemovivel } from "../components/TagRemovivel";
+import "./DesenvolvedorDetalhes.css";
 
-type Desenvolvedor = Developer;
-
-type Status = "carregando" | "erro" | "sucesso";
-
-function GaleriaDesenvolvedor() {
-  const [desenvolvedores, setDesenvolvedores] = useState<Desenvolvedor[]>([]);
-  const [status, setStatus] = useState<Status>("carregando");
-  const [modalAberto, setModalAberto] = useState(false);
-
-  async function carregarDesenvolvedores() {
-    try {
-      setStatus("carregando");
-      const data = await getDevelopersGallery();
-      setDesenvolvedores(data);
-      setStatus("sucesso");
-    } catch (error) {
-      console.error("Erro ao carregar desenvolvedores:", error);
-      setStatus("erro");
-    }
-  }
+export default function GaleriaDesenvolvedor() {
+  const [developers, setDevelopers] = useState<Developer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    let ativo = true;
+    const controller = new AbortController();
 
-    getDevelopersGallery()
-      .then((data) => {
-        if (ativo) {
-          setDesenvolvedores(data);
-          setStatus("sucesso");
+    setLoading(true);
+    setError("");
+
+    getDevelopersGallery(controller.signal)
+      .then(setDevelopers)
+      .catch((err: unknown) => {
+        if (!controller.signal.aborted) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Não foi possível carregar os desenvolvedores.",
+          );
         }
       })
-      .catch((error) => {
-        if (ativo) {
-          console.error("Erro ao carregar desenvolvedores:", error);
-          setStatus("erro");
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
         }
       });
 
-    return () => {
-      ativo = false;
-    };
-  }, []);
+    return () => controller.abort();
+  }, [reload]);
 
   return (
-    <section>
+    <section className="dev-gallery">
       <button
         type="button"
-        onClick={() => setModalAberto(true)}
-        className="mb-[30px] block cursor-pointer border-0 bg-transparent p-0 text-[20px] font-normal text-[#3d3f40]"
-        style={{ fontFamily: "Poppins, sans-serif" }}
+        className="dev-new-developer"
+        onClick={() => setModalOpen(true)}
       >
         Novo desenvolvedor
       </button>
 
-      {status === "carregando" && (
-        <p className="text-[12px] text-[#505555]">Carregando desenvolvedores...</p>
+      {loading && <p className="dev-muted">Carregando desenvolvedores...</p>}
+
+      {error && (
+        <div className="dev-feedback">
+          <p className="dev-error" role="alert">{error}</p>
+          <button
+            type="button"
+            className="dev-secondary"
+            onClick={() => setReload((value) => value + 1)}
+          >
+            Tentar novamente
+          </button>
+        </div>
       )}
 
-      {status === "erro" && (
-        <p className="text-[12px] text-[#ff641f]">Não foi possível carregar os desenvolvedores.</p>
+      {!loading && !error && developers.length === 0 && (
+        <p className="dev-muted">Nenhum desenvolvedor cadastrado.</p>
       )}
 
-      {status === "sucesso" && desenvolvedores.length === 0 && (
-        <p className="text-[12px] text-[#505555]">Nenhum desenvolvedor encontrado.</p>
+      {!error && (
+        <div className="dev-cards">
+          {developers.map((developer) => (
+            <Link
+              key={developer.id}
+              to={`/desenvolvedores/${developer.id}`}
+              className="dev-card"
+              aria-label={`Ver detalhes de ${developer.name}`}
+            >
+              <ArrowUpRight
+                className="dev-card-arrow"
+                size={18}
+                aria-hidden="true"
+              />
+              <span className="dev-card-name">{developer.name}</span>
+              <span className="dev-card-status">
+                {developer.active ? "Ativo" : "Inativo"}
+              </span>
+            </Link>
+          ))}
+        </div>
       )}
 
-      <div className="flex flex-wrap gap-[20px]">
-        {desenvolvedores.map((desenvolvedor) => (
-          <DesenvolvedorCard key={desenvolvedor.id} desenvolvedor={desenvolvedor} />
-        ))}
-      </div>
-
-      {modalAberto && (
-        <ModalCadastroDesenvolvedor
-          onFechar={() => setModalAberto(false)}
-          onCadastrado={() => {
-            setModalAberto(false);
-            carregarDesenvolvedores();
+      {modalOpen && (
+        <ModalNovoDesenvolvedor
+          onClose={() => setModalOpen(false)}
+          onCreated={() => {
+            setModalOpen(false);
+            setReload((value) => value + 1);
           }}
         />
       )}
@@ -96,260 +110,190 @@ function GaleriaDesenvolvedor() {
   );
 }
 
-function DesenvolvedorCard({ desenvolvedor }: { desenvolvedor: Desenvolvedor }) {
-  return (
-    <article
-      className="group flex w-[260px] items-center gap-[12px] rounded-[12px] bg-[#141617] px-[16px] py-[12px] transition-colors hover:bg-[#1c1e1f]"
-      data-node-id="248:85"
-    >
-      <div className="flex min-w-0 flex-1 flex-col gap-[4px]">
-        <span
-          className="truncate text-[18px] font-normal text-white"
-          style={{ fontFamily: "Outfit, sans-serif" }}
-        >
-          {desenvolvedor.name}
-        </span>
-
-        <span
-          className="flex items-center gap-[6px] text-[11px] font-normal text-[#9a9a9a]"
-          style={{ fontFamily: "Poppins, sans-serif" }}
-        >
-          <span
-            className={`h-[7px] w-[7px] rounded-full ${desenvolvedor.active ? "bg-[#5fd068]" : "bg-[#ff641f]"}`}
-            aria-hidden="true"
-          />
-          {desenvolvedor.active ? "Ativo" : "Inativo"}
-        </span>
-      </div>
-
-      {/* TODO: navegar para a página de detalhes do desenvolvedor */}
-      <button
-        type="button"
-        aria-label={`Ver detalhes de ${desenvolvedor.name}`}
-        title="Ver detalhes"
-        className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[#505555] transition-colors group-hover:text-[#ed6a32]"
-      >
-        <IdCard size={18} strokeWidth={1.5} />
-      </button>
-    </article>
-  );
+interface ModalProps {
+  onClose: () => void;
+  onCreated: () => void;
 }
 
-function ModalCadastroDesenvolvedor({
-  onFechar,
-  onCadastrado,
-}: {
-  onFechar: () => void;
-  onCadastrado: () => void;
-}) {
-  const [nome, setNome] = useState("");
-  // null = nada selecionado ainda -> dropdown mostra "Status"
-  const [ativo, setAtivo] = useState<boolean | null>(null);
-  const [tecnologiaIds, setTecnologiaIds] = useState<number[]>([]);
-  const gerenciadorTecnologias = useTecnologias();
-  const { tecnologias, carregando: carregandoTecnologias } = gerenciadorTecnologias;
-  const { aberto: techAberto, setAberto: setTechAberto, ref: techRef } = useDropdown();
+function ModalNovoDesenvolvedor({ onClose, onCreated }: ModalProps) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [name, setName] = useState("");
+  const [status, setStatus] = useState("");
+  const [technologyIds, setTechnologyIds] = useState<number[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  function alternarTecnologia(id: number) {
-    setTecnologiaIds((atuais) =>
-      atuais.includes(id) ? atuais.filter((t) => t !== id) : [...atuais, id]
+  const technologies = useTecnologias();
+  const dropdown = useDropdown();
+
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+
+    return () => element?.close();
+  }, []);
+
+  function toggleTechnology(id: number) {
+    setTechnologyIds((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : [...current, id],
     );
   }
-  const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
 
-  async function handleSalvar(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErro(null);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-    if (ativo === null) {
-      setErro("Selecione um status.");
+    if (saving) return;
+
+    setError("");
+
+    if (!status) {
+      setError("Selecione um status.");
       return;
     }
 
-    if (tecnologiaIds.length === 0) {
-      setErro("Selecione ao menos uma tecnologia.");
+    const validIds = technologyIds.filter((id) =>
+      technologies.tecnologias.some((technology) => technology.id === id),
+    );
+
+    if (validIds.length === 0) {
+      setError("Selecione ao menos uma tecnologia.");
       return;
     }
 
-    setEnviando(true);
+    setSaving(true);
 
     try {
       await createDeveloper({
-        name: nome,
-        active: ativo,
-        technologyIds: tecnologiaIds,
+        name: name.trim(),
+        active: status === "active",
+        technologyIds: validIds,
       });
 
-      setNome("");
-      setAtivo(null);
-      setTecnologiaIds([]);
-      setErro(null);
-
-      onCadastrado();
-    } catch (error: unknown) {
-      console.error("Erro ao cadastrar desenvolvedor:", error);
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Não foi possível cadastrar o desenvolvedor.";
-      setErro(message);
+      onCreated();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível cadastrar o desenvolvedor.",
+      );
     } finally {
-      setEnviando(false);
+      setSaving(false);
     }
   }
 
-  const statusOpcaoClasse = (selecionado: boolean) =>
-    `h-[36px] flex-1 rounded-[8px] border text-[13px] transition-colors ${
-      selecionado
-        ? "border-[#ed6a32] bg-[#ed6a32]/10 text-[#ed6a32]"
-        : "border-[#2a2c2d] text-[#9a9a9a] hover:border-[#3f3f3f] hover:text-white"
-    }`;
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
-      onClick={onFechar}
+    <dialog
+      ref={dialog}
+      className="dev-dialog"
+      aria-labelledby="new-developer-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!saving) onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !saving) {
+          onClose();
+        }
+      }}
     >
-      <form
-        onSubmit={handleSalvar}
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-[400px] rounded-[14px] bg-[#141617] p-[24px]"
-      >
-        <div className="mb-[20px] flex items-center justify-between">
-          <h2
-            className="text-[16px] font-medium text-white"
-            style={{ fontFamily: "Poppins, sans-serif" }}
-          >
-            Novo desenvolvedor
-          </h2>
+      <form className="dev-form" onSubmit={submit}>
+        <header className="dev-dialog-header">
+          <h2 id="new-developer-title">Novo desenvolvedor</h2>
           <button
             type="button"
-            onClick={onFechar}
+            className="dev-icon"
+            onClick={onClose}
+            disabled={saving}
             aria-label="Fechar"
-            className="cursor-pointer border-0 bg-transparent p-0 text-[#9a9a9a] transition-colors hover:text-white"
           >
-            <X size={18} strokeWidth={1.5} />
+            <X size={20} />
           </button>
-        </div>
+        </header>
 
-        <div className="flex flex-col gap-[16px]">
-          <div>
-            <label
-              className="mb-[6px] block text-[12px] text-[#9a9a9a]"
-              style={{ fontFamily: "Poppins, sans-serif" }}
+        <label className="dev-field">
+          Nome
+          <input
+            required
+            minLength={2}
+            maxLength={120}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Nome do desenvolvedor"
+          />
+        </label>
+
+        <label className="dev-field">
+          Status
+          <select
+            required
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            <option value="">Selecione</option>
+            <option value="active">Ativo</option>
+            <option value="inactive">Inativo</option>
+          </select>
+        </label>
+
+        <div className="dev-field">
+          <span>Tecnologias</span>
+
+          <div className="relative" ref={dropdown.ref}>
+            <button
+              type="button"
+              className="dev-select-button"
+              onClick={() => dropdown.setAberto(!dropdown.aberto)}
+              aria-expanded={dropdown.aberto}
             >
-              Nome
-            </label>
-            <input
-              type="text"
-              required
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome do desenvolvedor"
-              className="h-[40px] w-full rounded-[8px] border border-[#2a2c2d] bg-[#1c1e1f] px-[14px] text-[14px] text-white placeholder-[#6b6b6b] outline-none focus:border-[#ed6a32]"
-              style={{ fontFamily: "Poppins, sans-serif" }}
-            />
-          </div>
+              {technologies.carregando
+                ? "Carregando tecnologias..."
+                : "Selecione ou crie tecnologias"}
+            </button>
 
-          <div>
-            <label
-              className="mb-[6px] block text-[12px] text-[#9a9a9a]"
-              style={{ fontFamily: "Poppins, sans-serif" }}
-            >
-              Status
-            </label>
-            <div className="flex gap-[8px]" style={{ fontFamily: "Poppins, sans-serif" }}>
-              <button
-                type="button"
-                onClick={() => setAtivo(true)}
-                className={statusOpcaoClasse(ativo === true)}
-              >
-                Ativo
-              </button>
-              <button
-                type="button"
-                onClick={() => setAtivo(false)}
-                className={statusOpcaoClasse(ativo === false)}
-              >
-                Inativo
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label
-              className="mb-[6px] block text-[12px] text-[#9a9a9a]"
-              style={{ fontFamily: "Poppins, sans-serif" }}
-            >
-              Tecnologias
-            </label>
-            <div className="relative" ref={techRef}>
-              <button
-                type="button"
-                onClick={() => setTechAberto(!techAberto)}
-                className="flex h-[40px] w-full cursor-pointer items-center justify-between rounded-[8px] border border-[#2a2c2d] bg-[#1c1e1f] px-[14px] text-[14px] text-[#6b6b6b] outline-none transition-colors hover:border-[#3f3f3f] focus:border-[#ed6a32]"
-                style={{ fontFamily: "Poppins, sans-serif" }}
-              >
-                <span>
-                  {carregandoTecnologias
-                    ? "Carregando tecnologias..."
-                    : "Selecione ou crie tecnologias"}
-                </span>
-                <SetaDropdown aberto={techAberto} />
-              </button>
-
-              {techAberto && (
-                <div
-                  className="absolute left-0 top-full z-50 mt-2 w-full rounded-[12px] border border-[#2d2d2d] bg-[#141617] py-1.5 shadow-2xl"
-                  style={{ fontFamily: "Poppins, sans-serif" }}
-                >
-                  <PainelTecnologias
-                    gerenciador={gerenciadorTecnologias}
-                    selecionadas={tecnologiaIds}
-                    onAlternar={alternarTecnologia}
-                  />
-                </div>
-              )}
-            </div>
-
-            {tecnologiaIds.length > 0 && (
-              <div className="mt-[10px] flex flex-wrap gap-[8px]">
-                {tecnologiaIds.map((id) => (
-                  <TagRemovivel
-                    key={id}
-                    label={tecnologias.find((t) => t.id === id)?.name ?? String(id)}
-                    onRemove={() => alternarTecnologia(id)}
-                  />
-                ))}
+            {dropdown.aberto && (
+              <div className="dev-technology-dropdown">
+                <PainelTecnologias
+                  gerenciador={technologies}
+                  selecionadas={technologyIds}
+                  onAlternar={toggleTechnology}
+                />
               </div>
             )}
           </div>
 
-          {erro && <p className="text-[12px] text-[#ff641f]">{erro}</p>}
-
-          <div className="mt-[4px] flex items-center justify-end gap-[10px]">
-            <button
-              type="button"
-              onClick={onFechar}
-              className="h-[38px] cursor-pointer rounded-[8px] border-0 bg-transparent px-[16px] text-[13px] text-[#9a9a9a] transition-colors hover:text-white"
-              style={{ fontFamily: "Poppins, sans-serif" }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={enviando}
-              className="h-[38px] cursor-pointer rounded-[8px] border-0 bg-[#ed6a32] px-[18px] text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-              style={{ fontFamily: "Poppins, sans-serif" }}
-            >
-              {enviando ? "Salvando..." : "Salvar"}
-            </button>
+          <div className="dev-tags">
+            {technologyIds.map((id) => (
+              <TagRemovivel
+                key={id}
+                label={
+                  technologies.tecnologias.find((item) => item.id === id)?.name
+                  ?? String(id)
+                }
+                onRemove={() => toggleTechnology(id)}
+              />
+            ))}
           </div>
         </div>
+
+        {error && <p className="dev-error" role="alert">{error}</p>}
+
+        <footer className="dev-dialog-footer">
+          <button
+            type="button"
+            className="dev-secondary"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Voltar
+          </button>
+
+          <button type="submit" className="dev-primary" disabled={saving}>
+            {saving ? "Salvando..." : "Salvar"}
+          </button>
+        </footer>
       </form>
-    </div>
+    </dialog>
   );
 }
-
-export default GaleriaDesenvolvedor;
