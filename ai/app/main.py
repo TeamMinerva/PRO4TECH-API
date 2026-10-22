@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app import ollama_client, rag
 from app.config import settings
 from app.routers.project_chat import router as project_chat_router
+from app.routers.similar_projects import router as similar_projects_router
 
 
 @asynccontextmanager
@@ -18,6 +19,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="PRO4TECH - Servico de IA", lifespan=lifespan)
 
 app.include_router(project_chat_router)
+app.include_router(similar_projects_router)
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1)

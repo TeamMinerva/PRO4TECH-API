@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 from pathlib import Path
+from typing import TypedDict
 from lightrag import LightRAG, QueryParam
 from lightrag.utils import wrap_embedding_func_with_attrs
 
@@ -107,6 +108,33 @@ def _cosseno(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / denom) if denom else 0.0
 
 
+class ChunkProjeto(TypedDict):
+    id: str
+    ordem: int
+    texto: str
+
+
+async def recuperar_chunks_projeto(project_id: int) -> list[ChunkProjeto]:
+    rag = get_rag()
+    status = await rag.doc_status.get_by_id(doc_id_projeto(project_id))
+    chunk_ids = list((status or {}).get("chunks_list") or [])
+    if not chunk_ids:
+        return []
+
+    registros = await rag.text_chunks.get_by_ids(chunk_ids)
+    chunks: list[ChunkProjeto] = [
+        {
+            "id": cid,
+            "ordem": reg.get("chunk_order_index", 0),
+            "texto": reg["content"].strip(),
+        }
+        for cid, reg in zip(chunk_ids, registros)
+        if reg and reg.get("content", "").strip()
+    ]
+    chunks.sort(key=lambda c: c["ordem"])
+    return chunks
+
+
 async def recuperar_contexto_projeto(
     project_id: int,
     question: str,
@@ -117,24 +145,9 @@ async def recuperar_contexto_projeto(
     top_k = top_k or settings.chat_context_top_k
 
     rag = get_rag()
-    status = await rag.doc_status.get_by_id(doc_id_projeto(project_id))
-    chunk_ids = list((status or {}).get("chunks_list") or [])
-    if not chunk_ids:
-        return ""
-
-    registros = await rag.text_chunks.get_by_ids(chunk_ids)
-    chunks = [
-        {
-            "id": cid,
-            "ordem": reg.get("chunk_order_index", 0),
-            "texto": reg["content"].strip(),
-        }
-        for cid, reg in zip(chunk_ids, registros)
-        if reg and reg.get("content", "").strip()
-    ]
+    chunks = await recuperar_chunks_projeto(project_id)
     if not chunks:
         return ""
-    chunks.sort(key=lambda c: c["ordem"])
 
     # Projeto pequeno: manda tudo, na ordem original.
     if sum(len(c["texto"]) for c in chunks) <= max_chars:
