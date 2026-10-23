@@ -1,7 +1,10 @@
 import http from "node:http";
 import https from "node:https";
+import dns from "node:dns";
 import { prisma } from "../lib/prisma";
 import type { ChatMessage } from "../schemas/chat-project.schema";
+
+dns.setDefaultResultOrder("ipv4first");
 
 const AI_URL = (process.env.AI_URL || "http://localhost:8000").replace(/\/$/, "");
 // Com thinking ligado e CPU, o Qwen3 pode levar minutos. Mantemos um teto um
@@ -113,6 +116,27 @@ export async function perguntarSobreProjeto(
 
   const resposta = await postarParaIA<{ answer: string }>("/chat/project", {
     project_id: projectId,
+    question,
+    history,
+  });
+  return resposta.answer;
+}
+
+export async function perguntarSobreDesenvolvedor(
+  developerId: number,
+  question: string,
+  history: ChatMessage[],
+): Promise<string> {
+  const desenvolvedor = await prisma.developer.findUnique({
+    where: { id: developerId },
+    select: { id: true },
+  });
+  if (!desenvolvedor) {
+    throw new ChatServiceError("Desenvolvedor não encontrado.", 404);
+  }
+
+  const resposta = await postarParaIA<{ answer: string }>("/chat/developer", {
+    developer_id: developerId,
     question,
     history,
   });

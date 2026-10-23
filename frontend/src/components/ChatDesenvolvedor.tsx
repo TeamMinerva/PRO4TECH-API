@@ -1,14 +1,14 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
 } from "react";
 import { ArrowUp, PanelRightClose, RotateCcw } from "lucide-react";
-import {
-  askDeveloper,
-  type DeveloperChatMessage,
-} from "../services/developerService";
+import { useChat } from "../hooks/useChat";
+import { criarEnviarChatDesenvolvedor } from "../services/chatService";
+import { MensagemMarkdown } from "./MensagemMarkdown";
 
 interface Props {
   developerId: number;
@@ -17,93 +17,60 @@ interface Props {
   onClose: () => void;
 }
 
+const TAMANHO_MAXIMO = 8000;
+
+const SUGESTOES = [
+  "Faça um resumo do perfil e das competências deste desenvolvedor.",
+  "Em quais projetos e PBIs ele participou?",
+  "Quais problemas/bugs foram resolvidos por ele e quais soluções aplicou?",
+];
+
 export function ChatDesenvolvedor({
   developerId,
   developerName,
   open,
   onClose,
 }: Props) {
-  const [messages, setMessages] = useState<DeveloperChatMessage[]>([]);
+  const enviarChat = useMemo(
+    () => criarEnviarChatDesenvolvedor(developerId),
+    [developerId],
+  );
+  const {
+    mensagens,
+    enviando,
+    erro,
+    enviarMensagem,
+    tentarNovamente,
+    limpar,
+  } = useChat(enviarChat);
+
   const [text, setText] = useState("");
-  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
-  const [error, setError] = useState("");
-
-  const request = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    return () => request.current?.abort();
-  }, []);
 
   useEffect(() => {
     if (open) {
       end.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
-  }, [messages, pendingQuestion, open]);
+  }, [mensagens, enviando, erro, open]);
 
   function clearChat() {
-    request.current?.abort();
-    request.current = null;
-    setMessages([]);
+    limpar();
     setText("");
-    setPendingQuestion(null);
-    setError("");
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  function enviar(conteudo: string) {
+    const pergunta = conteudo.trim();
+    if (!pergunta || enviando) return;
+    enviarMensagem(pergunta);
+    setText("");
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const question = text.trim();
-
-    if (!question || request.current) return;
-
-    const controller = new AbortController();
-    request.current = controller;
-
-    const history = messages.slice(-10).map((message) => ({
-      role: message.role,
-      content: message.content.slice(0, 6000),
-    }));
-
-    setText("");
-    setError("");
-    setPendingQuestion(question);
-
-    try {
-      const answer = await askDeveloper(
-        developerId,
-        question,
-        history,
-        controller.signal,
-      );
-
-      if (request.current !== controller || controller.signal.aborted) {
-        return;
-      }
-
-      setMessages((current) => [
-        ...current,
-        { role: "user", content: question },
-        { role: "assistant", content: answer },
-      ]);
-    } catch (err) {
-      if (request.current !== controller || controller.signal.aborted) {
-        return;
-      }
-
-      setText(question);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Não foi possível obter a resposta.",
-      );
-    } finally {
-      if (request.current === controller) {
-        request.current = null;
-        setPendingQuestion(null);
-      }
-    }
+    enviar(text);
   }
+
+  const vazio = mensagens.length === 0;
 
   return (
     <aside
@@ -113,20 +80,22 @@ export function ChatDesenvolvedor({
     >
       <header className="dev-chat-header">
         <div>
-          <strong>Chat</strong>
+          <strong>Chat do desenvolvedor</strong>
           <small>{developerName}</small>
         </div>
 
         <div className="dev-chat-actions">
-          <button
-            type="button"
-            className="dev-icon"
-            onClick={clearChat}
-            title="Limpar conversa"
-            aria-label="Limpar conversa"
-          >
-            <RotateCcw size={17} />
-          </button>
+          {!vazio && (
+            <button
+              type="button"
+              className="dev-icon"
+              onClick={clearChat}
+              title="Limpar conversa"
+              aria-label="Limpar conversa"
+            >
+              <RotateCcw size={17} />
+            </button>
+          )}
 
           <button
             type="button"
@@ -141,47 +110,71 @@ export function ChatDesenvolvedor({
       </header>
 
       <div className="dev-chat-messages" role="log" aria-live="polite">
-        {messages.length === 0 && !pendingQuestion && (
-          <p className="dev-chat-empty">
-            Pergunte sobre as competências de {developerName}, os projetos
-            em que participou ou os problemas que solucionou.
-          </p>
+        {vazio && !enviando && (
+          <div className="dev-chat-welcome">
+            <p className="dev-chat-empty">
+              Pergunte sobre as competências de {developerName}, os projetos e
+              PBIs em que participou ou os problemas que solucionou.
+            </p>
+            <div className="dev-chat-suggestions">
+              {SUGESTOES.map((sugestao) => (
+                <button
+                  key={sugestao}
+                  type="button"
+                  className="dev-chat-suggestion"
+                  onClick={() => enviar(sugestao)}
+                >
+                  {sugestao}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
-        {messages.map((message, index) => (
+        {mensagens.map((message) => (
           <div
-            key={`${index}-${message.role}`}
+            key={message.id}
             className={`dev-message dev-message--${message.role}`}
             aria-label={message.role === "user" ? "Você" : "Assistente"}
           >
-            {message.content}
+            {message.role === "assistant" ? (
+              <MensagemMarkdown conteudo={message.content} />
+            ) : (
+              message.content
+            )}
           </div>
         ))}
 
-        {pendingQuestion && (
-          <>
-            <div className="dev-message dev-message--user">
-              {pendingQuestion}
-            </div>
-            <div className="dev-message dev-message--assistant" role="status">
-              Consultando as informações do desenvolvedor...
-            </div>
-          </>
+        {enviando && (
+          <div className="dev-message dev-message--assistant" role="status">
+            Pensando...
+          </div>
+        )}
+
+        {erro && !enviando && (
+          <div className="dev-chat-error-box" role="alert">
+            <p className="dev-error">{erro}</p>
+            <button
+              type="button"
+              className="dev-chat-retry"
+              onClick={tentarNovamente}
+            >
+              Tentar novamente
+            </button>
+          </div>
         )}
 
         <div ref={end} />
       </div>
 
-      {error && <p className="dev-error" role="alert">{error}</p>}
-
       <form className="dev-chat-form" onSubmit={submit}>
         <textarea
           rows={2}
-          maxLength={1500}
+          maxLength={TAMANHO_MAXIMO}
           value={text}
-          disabled={pendingQuestion !== null}
+          disabled={enviando}
           onChange={(event) => setText(event.target.value)}
-          placeholder="Digite uma mensagem."
+          placeholder="Pergunte sobre este desenvolvedor."
           aria-label="Pergunta sobre o desenvolvedor"
           onKeyDown={(event) => {
             if (
@@ -198,7 +191,7 @@ export function ChatDesenvolvedor({
         <button
           type="submit"
           className="dev-icon"
-          disabled={!text.trim() || pendingQuestion !== null}
+          disabled={!text.trim() || enviando}
           aria-label="Enviar mensagem"
         >
           <ArrowUp size={22} />

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from app import ollama_client, rag
 from app.config import settings
-from app.developer_chat import router as developer_chat_router
+from app.routers.developer_chat import router as developer_chat_router
 from app.routers.general_chat import router as general_chat_router
 from app.routers.project_chat import router as project_chat_router
 

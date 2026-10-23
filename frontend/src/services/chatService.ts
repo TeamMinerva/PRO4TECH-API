@@ -68,3 +68,14 @@ export function criarEnviarChatProjeto(projetoId: number | string): EnviarMensag
     return postarChat(`/api/chat/projects/${id}`, pergunta, historico, signal);
   };
 }
+
+/** Chat que responde dúvidas sobre UM desenvolvedor específico. */
+export function criarEnviarChatDesenvolvedor(desenvolvedorId: number | string): EnviarMensagemChat {
+  return (pergunta, historico, signal) => {
+    const id = Number(desenvolvedorId);
+    if (!Number.isInteger(id) || id <= 0) {
+      return Promise.reject(new Error('Desenvolvedor inválido para o chat.'));
+    }
+    return postarChat(`/api/chat/developers/${id}`, pergunta, historico, signal);
+  };
+}

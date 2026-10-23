@@ -83,7 +83,17 @@ async def insert(text: str, doc_id: str | None = None) -> None:
             await rag_inst.adelete_by_doc_id(doc_id)
         except Exception:
             pass
-        await rag_inst.ainsert(text, ids=[doc_id])
+        if hasattr(rag_inst, "apipeline_enqueue_documents") and hasattr(
+            rag_inst, "apipeline_process_enqueue_documents"
+        ):
+            await rag_inst.apipeline_enqueue_documents(
+                text,
+                ids=[doc_id],
+                process_options="!",
+            )
+            await rag_inst.apipeline_process_enqueue_documents()
+        else:
+            await rag_inst.ainsert(text, ids=[doc_id])
     else:
         await rag_inst.ainsert(text)
 
@@ -92,17 +102,22 @@ async def query(question: str, mode: str = "mix") -> str:
     return await get_rag().aquery(question, param=QueryParam(mode=mode))
 
 # --------------------------------------------------------------------------
-# Recuperacao de contexto restrita a UM projeto
+# Recuperacao de contexto restrita a UM projeto ou UM desenvolvedor
 # --------------------------------------------------------------------------
 # O LightRAG (mix/local/global) consulta o grafo inteiro e nao filtra por
-# documento, o que misturaria dados de outros projetos na resposta. Como cada
-# projeto e indexado como um documento proprio (doc_id "projeto_<id>", veja
-# indexacao.service.ts no backend), buscamos so os chunks desse documento e
-# ranqueamos por similaridade com a pergunta usando os vetores ja gravados.
+# documento, o que misturaria dados de outros registros na resposta. Como cada
+# projeto/desenvolvedor e indexado como um documento proprio (doc_id
+# "projeto_<id>" ou "dev_<id>", veja indexacao.service.ts no backend), buscamos
+# so os chunks desse documento e ranqueamos por similaridade com a pergunta
+# usando os vetores ja gravados.
 # Efeito colateral bom: nenhuma chamada ao LLM na etapa de recuperacao.
 
 def doc_id_projeto(project_id: int) -> str:
     return f"projeto_{project_id}"
+
+
+def doc_id_desenvolvedor(developer_id: int) -> str:
+    return f"dev_{developer_id}"
 
 
 def _cosseno(a: np.ndarray, b: np.ndarray) -> float:
@@ -110,18 +125,19 @@ def _cosseno(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / denom) if denom else 0.0
 
 
-async def recuperar_contexto_projeto(
-    project_id: int,
+async def _recuperar_contexto_documento(
+    doc_id: str,
     question: str,
     max_chars: int | None = None,
     top_k: int | None = None,
+    normalizar: bool = False,
 ) -> str:
     max_chars = max_chars or settings.chat_context_max_chars
     top_k = top_k or settings.chat_context_top_k
 
     rag = get_rag()
-    status = await rag.doc_status.get_by_id(doc_id_projeto(project_id))
-    chunk_ids = list((status or {}).get("chunks_list") or [])
+    status = await rag.doc_status.get_by_id(doc_id)
+    chunk_ids = _extrair_chunks_list(status)
     if not chunk_ids:
         return ""
 
@@ -130,7 +146,11 @@ async def recuperar_contexto_projeto(
         {
             "id": cid,
             "ordem": reg.get("chunk_order_index", 0),
-            "texto": reg["content"].strip(),
+            "texto": (
+                normalizar_termos_banco(reg["content"].strip())
+                if normalizar
+                else reg["content"].strip()
+            ),
         }
         for cid, reg in zip(chunk_ids, registros)
         if reg and reg.get("content", "").strip()
@@ -139,11 +159,11 @@ async def recuperar_contexto_projeto(
         return ""
     chunks.sort(key=lambda c: c["ordem"])
 
-    # Projeto pequeno: manda tudo, na ordem original.
+    # Documento pequeno: manda tudo, na ordem original.
     if sum(len(c["texto"]) for c in chunks) <= max_chars:
         return "\n\n".join(c["texto"] for c in chunks)
 
-    # Projeto grande: ranqueia por similaridade com a pergunta.
+    # Documento grande: ranqueia por similaridade com a pergunta.
     vetores = await rag.chunks_vdb.get_vectors_by_ids([c["id"] for c in chunks])
     consulta = np.array((await embedding_func([question]))[0], dtype=float)
 
@@ -157,7 +177,7 @@ async def recuperar_contexto_projeto(
         reverse=True,
     )
 
-    # O primeiro chunk carrega o cabecalho (nome, status, tecnologias): sempre entra.
+    # O primeiro chunk carrega o cabecalho (identificacao): sempre entra.
     escolhidos = [chunks[0]]
     usado = len(chunks[0]["texto"])
     for _, chunk in pontuados:
@@ -172,6 +192,36 @@ async def recuperar_contexto_projeto(
 
     escolhidos.sort(key=lambda c: c["ordem"])
     return "\n\n".join(c["texto"] for c in escolhidos)
+
+
+async def recuperar_contexto_projeto(
+    project_id: int,
+    question: str,
+    max_chars: int | None = None,
+    top_k: int | None = None,
+) -> str:
+    return await _recuperar_contexto_documento(
+        doc_id=doc_id_projeto(project_id),
+        question=question,
+        max_chars=max_chars,
+        top_k=top_k,
+        normalizar=False,
+    )
+
+
+async def recuperar_contexto_desenvolvedor(
+    developer_id: int,
+    question: str,
+    max_chars: int | None = None,
+    top_k: int | None = None,
+) -> str:
+    return await _recuperar_contexto_documento(
+        doc_id=doc_id_desenvolvedor(developer_id),
+        question=question,
+        max_chars=max_chars,
+        top_k=top_k,
+        normalizar=True,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -482,4 +532,3 @@ async def recuperar_contexto_geral(
         return "\n\n".join(blocos), fontes_selecionadas
 
     return resumo_grafo, []
-
