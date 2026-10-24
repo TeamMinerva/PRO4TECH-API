@@ -63,7 +63,23 @@ async def ask(body: AskRequest):
 async def insert_knowledge(body: InsertRequest):
     # Insere um texto no grafo+vetores do LightRAG (SCRUM-31). A rotina que
     # busca o dado do backend Node e monta esse texto e a SCRUM-32.
-    await rag.insert(body.text, doc_id=body.doc_id)
+    try:
+        await rag.insert(body.text, doc_id=body.doc_id)
+    except ollama_client.OllamaTimeout as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="O modelo demorou demais para concluir a indexação.",
+        ) from exc
+    except ollama_client.OllamaUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Ollama indisponível durante a indexação: {exc}",
+        ) from exc
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="LightRAG demorou demais para concluir a indexação.",
+        ) from exc
 
 
 @app.post("/knowledge/query", response_model=QueryResponse)

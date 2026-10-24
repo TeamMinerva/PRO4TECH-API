@@ -8,6 +8,8 @@ from app.schemas.similar_projects_schema import (
 from app.services.similar_projects_service import (
     OriginEmbeddingsUnavailableError,
     ProjectNotIndexedError,
+    VectorLookupTimeoutError,
+    VectorStorageError,
     buscar_projetos_semelhantes,
 )
 
@@ -22,6 +24,16 @@ async def similar_projects(body: SimilarProjectsRequest):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except OriginEmbeddingsUnavailableError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except VectorLookupTimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="O armazenamento de embeddings demorou demais para responder.",
+        ) from exc
+    except VectorStorageError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Não foi possível consultar o armazenamento de embeddings.",
+        ) from exc
     except ollama_client.OllamaTimeout as exc:
         raise HTTPException(
             status_code=504,

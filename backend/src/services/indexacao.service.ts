@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { AI_TIMEOUT_MS, postJson } from './ai-http.service';
 
 export class IndexacaoService {
   async gerarEIndexarConhecimentoTotal() {
@@ -27,29 +28,34 @@ export class IndexacaoService {
 
       return { success: true, message: "Indexação concluída." };
     } catch (error) {
-      console.error("Aviso: falha ao gerar indexação total", error);
+      console.error("event=knowledge_indexing_failed", error);
       return { success: false, error };
     }
   }
 
   async atualizarProjetoNoRAG(projetoId: number) {
     try {
-      const projeto = await prisma.project.findUnique({
-        where: { id: projetoId },
-        include: {
-          technologies: true,
-          bugs: { include: { developer: true } },
-          epics: { include: { features: { include: { pbis: { include: { developers: { include: { technologies: true } } } } } } } }
-        }
-      });
-
-      if (projeto) {
-        const textoAtualizado = this.formatarProjeto(projeto);
-        await this.enviarParaLightRAG(textoAtualizado, `projeto_${projeto.id}`);
-      }
+      await this.reindexarProjeto(projetoId);
     } catch (error) {
-      console.error("Aviso: falha ao atualizar projeto no LightRAG", error);
+      console.error("event=project_knowledge_indexing_failed project_id=%d", projetoId, error);
     }
+  }
+
+  async reindexarProjeto(projetoId: number) {
+    const projeto = await prisma.project.findUnique({
+      where: { id: projetoId },
+      include: {
+        technologies: true,
+        bugs: { include: { developer: true } },
+        epics: { include: { features: { include: { pbis: { include: { developers: { include: { technologies: true } } } } } } } }
+      }
+    });
+    if (!projeto) {
+      throw new Error(`Projeto ${projetoId} não encontrado.`);
+    }
+
+    const textoAtualizado = this.formatarProjeto(projeto);
+    await this.enviarParaLightRAG(textoAtualizado, `projeto_${projeto.id}`);
   }
 
   async atualizarDesenvolvedorNoRAG(devId: number) {
@@ -64,7 +70,7 @@ export class IndexacaoService {
         await this.enviarParaLightRAG(textoDev, `dev_${dev.id}`);
       }
     } catch (error) {
-      console.error("Aviso: falha ao atualizar desenvolvedor no LightRAG", error);
+      console.error("event=developer_knowledge_indexing_failed developer_id=%d", devId, error);
     }
   }
 
@@ -102,19 +108,32 @@ export class IndexacaoService {
   }
 
   private async enviarParaLightRAG(conteudo: string, docId: string) {
+    const urlFastAPI = process.env.LIGHTRAG_URL || 'http://localhost:8000/knowledge';
     try {
-      const urlFastAPI = process.env.LIGHTRAG_URL || 'http://localhost:8000/knowledge';
-      
-      await fetch(urlFastAPI, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+      const resposta = await postJson(
+        urlFastAPI,
+        {
           text: conteudo,
           doc_id: docId
-        })
-      });
+        },
+        AI_TIMEOUT_MS,
+      );
+      if (resposta.status < 200 || resposta.status >= 300) {
+        console.error(
+          "event=lightrag_indexing_http_failed document_id=%s http_status=%d",
+          docId,
+          resposta.status,
+        );
+        throw new Error(`LightRAG respondeu com HTTP ${resposta.status}.`);
+      }
     } catch (error) {
-      console.error("Aviso: falha de rede ao comunicar com o LightRAG.", error);
+      console.error(
+        "event=lightrag_indexing_request_failed document_id=%s endpoint_host=%s",
+        docId,
+        new URL(urlFastAPI).host,
+        error,
+      );
+      throw error;
     }
   }
 }

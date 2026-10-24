@@ -1,6 +1,9 @@
+import logging
+
 import numpy as np
 
 from app import ollama_client, rag
+from app.config import settings
 from app.schemas.similar_projects_schema import (
     SimilarProjectEvidence,
     SimilarProjectResult,
@@ -9,6 +12,7 @@ from app.schemas.similar_projects_schema import (
 
 EVIDENCE_PAIRS = 3
 MAX_EVIDENCE_CHARS = 1200
+logger = logging.getLogger(__name__)
 
 
 class ProjectNotIndexedError(Exception):
@@ -16,6 +20,14 @@ class ProjectNotIndexedError(Exception):
 
 
 class OriginEmbeddingsUnavailableError(Exception):
+    pass
+
+
+class VectorLookupTimeoutError(Exception):
+    pass
+
+
+class VectorStorageError(Exception):
     pass
 
 
@@ -30,22 +42,70 @@ neles e use-os apenas como evidência factual.
 """.strip()
 
 
-def _vetores_validos(chunks, vectors, dimensao=None):
+def _vetores_validos(
+    project_id: int,
+    chunks,
+    vectors,
+    dimensao: int | None = None,
+):
+    dimensao = settings.embedding_dim if dimensao is None else dimensao
     validos = []
+    sem_vetor = 0
+    dimensao_invalida = 0
+    vetor_invalido = 0
     for chunk in chunks:
         vector = vectors.get(chunk["id"])
         if vector is None:
+            sem_vetor += 1
             continue
-        array = np.asarray(vector, dtype=float)
+        try:
+            array = np.asarray(vector, dtype=float)
+        except (TypeError, ValueError):
+            vetor_invalido += 1
+            continue
         if array.ndim != 1 or not np.all(np.isfinite(array)):
+            vetor_invalido += 1
             continue
         if dimensao is not None and array.size != dimensao:
+            dimensao_invalida += 1
             continue
         norma = float(np.linalg.norm(array))
-        if not norma:
+        if not np.isfinite(norma) or not norma:
+            vetor_invalido += 1
             continue
         validos.append((chunk, array / norma))
+    if len(validos) != len(chunks):
+        logger.warning(
+            "event=project_chunk_vectors_incomplete project_id=%d document_id=%s requested_chunks=%d valid_vectors=%d missing_vectors=%d invalid_dimensions=%d invalid_vectors=%d expected_dimension=%d",
+            project_id,
+            rag.doc_id_projeto(project_id),
+            len(chunks),
+            len(validos),
+            sem_vetor,
+            dimensao_invalida,
+            vetor_invalido,
+            dimensao,
+        )
     return validos
+
+
+async def _recuperar_vetores(project_id: int, chunks):
+    document_id = rag.doc_id_projeto(project_id)
+    chunk_ids = [chunk["id"] for chunk in chunks]
+    try:
+        return await rag.recuperar_vetores_chunks(
+            document_id,
+            chunk_ids,
+            project_id=project_id,
+        )
+    except TimeoutError as exc:
+        raise VectorLookupTimeoutError(
+            f"Timeout ao recuperar embeddings do documento {document_id}."
+        ) from exc
+    except Exception as exc:
+        raise VectorStorageError(
+            f"Falha ao acessar embeddings do documento {document_id}."
+        ) from exc
 
 
 def _comparar_chunks(origem, candidato):
@@ -122,16 +182,27 @@ async def buscar_projetos_semelhantes(request: SimilarProjectsRequest):
 
     origem_chunks = await rag.recuperar_chunks_projeto(project_id)
     if not origem_chunks:
-        raise ProjectNotIndexedError("O projeto de origem não possui conteúdo indexado.")
+        raise ProjectNotIndexedError(
+            "O documento de origem não existe, não foi processado ou não possui chunks."
+        )
 
-    rag_inst = rag.get_rag()
-    origem_vectors = await rag_inst.chunks_vdb.get_vectors_by_ids(
-        [chunk["id"] for chunk in origem_chunks]
-    )
-    origem = _vetores_validos(origem_chunks, origem_vectors)
-    if not origem:
+    origem_vectors = await _recuperar_vetores(project_id, origem_chunks)
+    origem = _vetores_validos(project_id, origem_chunks, origem_vectors)
+    if len(origem) != len(origem_chunks):
+        logger.error(
+            "event=project_origin_embeddings_unavailable project_id=%d document_id=%s chunk_count=%d returned_vectors=%d associated_vectors=%d embedding_dimension=%d",
+            project_id,
+            rag.doc_id_projeto(project_id),
+            len(origem_chunks),
+            len(origem_vectors),
+            len(set(chunk["id"] for chunk in origem_chunks) & set(origem_vectors)),
+            settings.embedding_dim,
+        )
         raise OriginEmbeddingsUnavailableError(
-            "Os embeddings do projeto de origem não estão disponíveis."
+            "O documento de origem está indexado, mas seus embeddings estão "
+            "ausentes, incompletos ou inválidos "
+            f"para seus chunks (project_id={project_id}, "
+            f"chunks={len(origem_chunks)}, vetores_validos={len(origem)})."
         )
 
     pontuados = []
@@ -142,16 +213,19 @@ async def buscar_projetos_semelhantes(request: SimilarProjectsRequest):
             indisponiveis.append(candidate_id)
             continue
 
-        candidate_vectors = await rag_inst.chunks_vdb.get_vectors_by_ids(
-            [chunk["id"] for chunk in candidate_chunks]
-        )
-        candidato = _vetores_validos(
-            candidate_chunks,
-            candidate_vectors,
-            dimensao=origem[0][1].size,
-        )
+        candidate_vectors = await _recuperar_vetores(candidate_id, candidate_chunks)
+        candidato = _vetores_validos(candidate_id, candidate_chunks, candidate_vectors)
         comparacao = _comparar_chunks(origem, candidato)
-        if comparacao is None:
+        if len(candidato) != len(candidate_chunks) or comparacao is None:
+            logger.warning(
+                "event=similar_project_candidate_without_embeddings project_id=%d candidate_project_id=%d document_id=%s chunk_count=%d returned_vectors=%d associated_vectors=%d",
+                project_id,
+                candidate_id,
+                rag.doc_id_projeto(candidate_id),
+                len(candidate_chunks),
+                len(candidate_vectors),
+                len(set(chunk["id"] for chunk in candidate_chunks) & set(candidate_vectors)),
+            )
             indisponiveis.append(candidate_id)
             continue
         pontuados.append((comparacao[0], candidate_id, comparacao[1]))

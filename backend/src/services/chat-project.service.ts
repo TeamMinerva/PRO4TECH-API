@@ -1,56 +1,6 @@
-import http from "node:http";
-import https from "node:https";
 import { prisma } from "../lib/prisma";
 import type { ChatMessage } from "../schemas/chat-project.schema";
-
-const AI_URL = (process.env.AI_URL || "http://localhost:8000").replace(/\/$/, "");
-// Com thinking ligado e CPU, o Qwen3 pode levar minutos. Mantemos um teto um
-// pouco acima do timeout do serviço de IA (AI_TIMEOUT_SECONDS, padrão 600s).
-const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 1520000;
-
-/**
- * POST JSON usando node:http(s). O fetch embutido do Node corta a conexão se os
- * headers não chegam em 300s e a resposta do modelo só começa quando ele termina;
- * http.request não tem esse limite, só o timeout de inatividade abaixo.
- */
-function postJson(url: string, body: unknown, timeoutMs: number): Promise<{ status: number; data: unknown }> {
-  return new Promise((resolve, reject) => {
-    const alvo = new URL(url);
-    const payload = JSON.stringify(body);
-    const cliente = alvo.protocol === "https:" ? https : http;
-
-    const req = cliente.request(
-      alvo,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(payload),
-        },
-        timeout: timeoutMs,
-      },
-      (res) => {
-        const partes: Buffer[] = [];
-        res.on("data", (parte: Buffer) => partes.push(parte));
-        res.on("error", reject);
-        res.on("end", () => {
-          let data: unknown = null;
-          try {
-            data = JSON.parse(Buffer.concat(partes).toString("utf8"));
-          } catch {
-            // corpo não-JSON: mantém null
-          }
-          resolve({ status: res.statusCode ?? 0, data });
-        });
-      },
-    );
-
-    req.on("timeout", () => req.destroy(Object.assign(new Error("timeout"), { name: "TimeoutError" })));
-    req.on("error", reject);
-    req.write(payload);
-    req.end();
-  });
-}
+import { AI_URL, AI_TIMEOUT_MS, postJson } from "./ai-http.service";
 
 export class AIServiceError extends Error {
   constructor(

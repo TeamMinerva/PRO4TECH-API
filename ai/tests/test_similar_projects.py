@@ -21,27 +21,66 @@ class FakeChunks:
 
 
 class FakeVdb:
-    def __init__(self, vectors):
+    def __init__(self, vectors, error=None, rename_keys=False, health_error=None):
         self.vectors = vectors
+        self.error = error
+        self.rename_keys = rename_keys
+        self.db = FakeDatabase(health_error)
 
     async def get_vectors_by_ids(self, ids):
-        return {chunk_id: self.vectors[chunk_id] for chunk_id in ids if chunk_id in self.vectors}
+        if self.error:
+            raise self.error
+        result = {
+            chunk_id: self.vectors[chunk_id]
+            for chunk_id in ids
+            if chunk_id in self.vectors
+        }
+        if self.rename_keys:
+            return {f"other:{key}": vector for key, vector in result.items()}
+        return result
 
 
-def montar_rag(monkeypatch, projects, vectors):
+class FakeDatabase:
+    def __init__(self, error=None):
+        self.error = error
+
+    async def query(self, query):
+        assert query == "SELECT 1"
+        if self.error:
+            raise self.error
+        return {"?column?": 1}
+
+
+def montar_rag(
+    monkeypatch,
+    projects,
+    vectors,
+    *,
+    vector_error=None,
+    rename_keys=False,
+    health_error=None,
+    document_status=None,
+):
+    if vectors:
+        monkeypatch.setattr(rag.settings, "embedding_dim", len(next(iter(vectors.values()))))
+
     docs = {}
     chunks = {}
     for project_id, textos in projects.items():
         doc_id = f"projeto_{project_id}"
         chunk_ids = [f"{doc_id}-c{index}" for index in range(len(textos))]
-        docs[doc_id] = {"chunks_list": chunk_ids}
+        docs[doc_id] = {
+            "status": (document_status or {}).get(project_id, "processed"),
+            "chunks_count": len(chunk_ids),
+            "chunks_list": chunk_ids,
+        }
         for index, (chunk_id, texto) in enumerate(zip(chunk_ids, textos)):
             chunks[chunk_id] = {"content": texto, "chunk_order_index": index}
 
     class FakeRag:
         doc_status = FakeDocStatus(docs)
         text_chunks = FakeChunks(chunks)
-        chunks_vdb = FakeVdb(vectors)
+        chunks_vdb = FakeVdb(vectors, vector_error, rename_keys, health_error)
 
     monkeypatch.setattr(rag, "rag_instance", FakeRag())
 
@@ -148,6 +187,100 @@ async def test_similar_projects_reports_missing_origin_embeddings(client, monkey
         json={"project_id": 1, "candidate_project_ids": []},
     )
     assert response.status_code == 409
+
+
+async def test_similar_projects_reports_document_with_no_chunks(client, monkeypatch):
+    montar_rag(monkeypatch, {1: []}, {})
+    response = await client.post(
+        "/projects/similar",
+        json={"project_id": 1, "candidate_project_ids": []},
+    )
+    assert response.status_code == 404
+
+
+async def test_similar_projects_rejects_document_not_processed(client, monkeypatch):
+    montar_rag(
+        monkeypatch,
+        {1: ["Parcial"]},
+        {"projeto_1-c0": [1, 0]},
+        document_status={1: "failed"},
+    )
+    response = await client.post(
+        "/projects/similar",
+        json={"project_id": 1, "candidate_project_ids": []},
+    )
+    assert response.status_code == 404
+
+
+async def test_similar_projects_rejects_partial_origin_vectors(client, monkeypatch):
+    montar_rag(
+        monkeypatch,
+        {1: ["Origem A", "Origem B"]},
+        {"projeto_1-c0": [1, 0]},
+    )
+    response = await client.post(
+        "/projects/similar",
+        json={"project_id": 1, "candidate_project_ids": []},
+    )
+    assert response.status_code == 409
+    assert "chunks=2" in response.json()["detail"]
+
+
+async def test_similar_projects_reports_vector_keys_that_do_not_match_chunks(client, monkeypatch):
+    montar_rag(
+        monkeypatch,
+        {1: ["Origem"]},
+        {"projeto_1-c0": [1, 0]},
+        rename_keys=True,
+    )
+    response = await client.post(
+        "/projects/similar",
+        json={"project_id": 1, "candidate_project_ids": []},
+    )
+    assert response.status_code == 409
+    assert "chunks=1" in response.json()["detail"]
+
+
+async def test_similar_projects_surfaces_vector_storage_failures(client, monkeypatch):
+    montar_rag(
+        monkeypatch,
+        {1: ["Origem"]},
+        {},
+        vector_error=RuntimeError("storage offline"),
+    )
+    response = await client.post(
+        "/projects/similar",
+        json={"project_id": 1, "candidate_project_ids": []},
+    )
+    assert response.status_code == 503
+
+
+async def test_similar_projects_surfaces_postgres_health_failures(client, monkeypatch):
+    montar_rag(
+        monkeypatch,
+        {1: ["Origem"]},
+        {},
+        health_error=RuntimeError("postgres unavailable"),
+    )
+    response = await client.post(
+        "/projects/similar",
+        json={"project_id": 1, "candidate_project_ids": []},
+    )
+    assert response.status_code == 503
+
+
+async def test_similar_projects_maps_vector_embedding_timeout_to_gateway_timeout(client, monkeypatch):
+    montar_rag(
+        monkeypatch,
+        {1: ["Origem"]},
+        {},
+        vector_error=TimeoutError("embedding worker timeout"),
+    )
+    response = await client.post(
+        "/projects/similar",
+        json={"project_id": 1, "candidate_project_ids": []},
+    )
+    assert response.status_code == 504
 
 
 async def test_similar_projects_rejects_invalid_parameters(client):
