@@ -15,6 +15,7 @@ import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { useDropdown } from '../hooks/useDropdown';
 import { STATUS_OPCOES, useProjeto } from '../hooks/useProjeto';
 import { useTecnologias } from '../hooks/useTecnologias';
+import { criarEnviarChatProjeto } from '../services/chatService';
 
 export default function CadastroProjeto() {
   const { id } = useParams();
@@ -373,8 +374,8 @@ export default function CadastroProjeto() {
             <button
               type="button"
               onClick={async () => {
-                const salvo = await handleSalvar();
-                if (salvo && editando) navigate(`/projetos/${id}`);
+                const projetoIdSalvo = await handleSalvar();
+                if (projetoIdSalvo !== null) navigate(`/projetos/${projetoIdSalvo}`);
               }}
               className="bg-[#141617] hover:bg-[#1c1e1f] text-white px-8 py-3 rounded-[12px] text-lg transition-colors border border-[#2d2d2d]"
             >
@@ -421,7 +422,11 @@ export default function CadastroProjeto() {
         </button>
       )}
 
-      <ChatLateral aberto={chatAberto} onFechar={() => setChatAberto(false)} />
+      <ChatLateral
+        aberto={chatAberto}
+        onFechar={() => setChatAberto(false)}
+        onEnviar={criarEnviarChatProjeto(id ?? '')}
+      />
     </div>
   );
 }

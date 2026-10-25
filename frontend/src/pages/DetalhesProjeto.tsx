@@ -11,7 +11,12 @@ import { useBacklogEditavel } from '../hooks/useBacklogEditavel';
 import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { STATUS_OPCOES } from '../hooks/useProjeto';
 import { criarEnviarChatProjeto } from '../services/chatService';
-import { getProjectById, type ProjetoDetalhes } from '../services/projectService';
+import {
+  getProjectById,
+  getSimilarProjects,
+  type ProjetoDetalhes,
+  type ProjetoSemelhanteIA,
+} from '../services/projectService';
 
 type Aba = 'bugs' | 'backlog';
 
@@ -22,7 +27,11 @@ export default function DetalhesProjeto() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [chatAberto, setChatAberto] = useState(true);
-  const [semelhantesAberto, setSemelhantesAberto] = useState(false);
+  const [semelhantesAberto, setSemelhantesAberto] = useState(true);
+  const [projetosSemelhantes, setProjetosSemelhantes] = useState<ProjetoSemelhanteIA[]>([]);
+  const [statusSemelhantes, setStatusSemelhantes] = useState<'carregando' | 'sucesso' | 'erro'>('carregando');
+  const [projetoIdSemelhantes, setProjetoIdSemelhantes] = useState<number | null>(null);
+  const [erroSemelhantes, setErroSemelhantes] = useState<string | null>(null);
   const [equipeAberta, setEquipeAberta] = useState(false);
   const [aba, setAba] = useState<Aba>('bugs');
   const [modalBugAberto, setModalBugAberto] = useState(false);
@@ -59,6 +68,57 @@ export default function DetalhesProjeto() {
     };
   }, [id, carregarBacklog]);
 
+  const projetoIdAtual = projeto?.id;
+  useEffect(() => {
+    if (!id || !projetoIdAtual || projetoIdAtual !== Number(id)) return;
+
+    let ativo = true;
+    getSimilarProjects(id)
+      .then((response) => {
+        if (ativo) {
+          setProjetoIdSemelhantes(response.projectId);
+          setProjetosSemelhantes(response.similarProjects);
+          setStatusSemelhantes('sucesso');
+        }
+      })
+      .catch((error: unknown) => {
+        if (ativo) {
+          setProjetoIdSemelhantes(Number(id));
+          const message = error instanceof Error
+            ? error.message
+            : 'Não foi possível buscar projetos semelhantes.';
+          setErroSemelhantes(message);
+          setStatusSemelhantes('erro');
+        }
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [id, projetoIdAtual]);
+
+  const tentarBuscarSemelhantesNovamente = () => {
+    if (!id) return;
+
+    setProjetoIdSemelhantes(Number(id));
+    setStatusSemelhantes('carregando');
+    setErroSemelhantes(null);
+    getSimilarProjects(id, true)
+      .then((response) => {
+        setProjetoIdSemelhantes(response.projectId);
+        setProjetosSemelhantes(response.similarProjects);
+        setStatusSemelhantes('sucesso');
+      })
+      .catch((error: unknown) => {
+        setProjetoIdSemelhantes(Number(id));
+        const message = error instanceof Error
+          ? error.message
+          : 'Não foi possível buscar projetos semelhantes.';
+        setErroSemelhantes(message);
+        setStatusSemelhantes('erro');
+      });
+  };
+
   // minmax(0, ...) impede que textos longos estourem as margens da tabela
   const colunasBugs = chatAberto
     ? 'grid-cols-[minmax(0,1fr)_minmax(120px,240px)]'
@@ -67,6 +127,12 @@ export default function DetalhesProjeto() {
   const statusLabel = projeto
     ? STATUS_OPCOES.find((o) => o.valor === projeto.status)?.label ?? projeto.status
     : '';
+  const statusSemelhantesAtual = projeto?.id === projetoIdSemelhantes
+    ? statusSemelhantes
+    : 'carregando';
+  const resultadosSemelhantesAtuais = projeto?.id === projetoIdSemelhantes
+    ? projetosSemelhantes
+    : [];
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#191b1c] p-6 gap-4 lg:py-10 lg:pl-[50px] lg:pr-[50px]">
@@ -135,15 +201,39 @@ export default function DetalhesProjeto() {
                   rotulo="Projetos semelhantes"
                   aberto={semelhantesAberto}
                   onAlternar={() => setSemelhantesAberto(!semelhantesAberto)}
-                  vazio="Nenhum projeto semelhante."
-                  itens={(projeto.similarProjects || []).map((p) => (
+                  vazio={
+                    statusSemelhantesAtual === 'sucesso'
+                      ? 'Nenhum projeto semelhante encontrado.'
+                      : ''
+                  }
+                  itens={statusSemelhantesAtual === 'carregando'
+                    ? [<span key="carregando" className="text-base text-[#5a5f5f]">Buscando projetos semelhantes...</span>]
+                    : statusSemelhantesAtual === 'erro'
+                      ? [
+                        <div key="erro" className="flex flex-wrap items-center gap-3">
+                          <span className="text-base text-[#ED6A32]">{erroSemelhantes}</span>
+                          <button
+                            type="button"
+                            onClick={tentarBuscarSemelhantesNovamente}
+                            className="text-sm text-[#d6d6d6] underline hover:text-[#ED6A32]"
+                          >
+                            Tentar novamente
+                          </button>
+                        </div>,
+                      ]
+                      : resultadosSemelhantesAtuais.map((p) => (
                     <button
-                      key={p.id}
+                      key={p.projectId}
                       type="button"
-                      onClick={() => navigate(`/projetos/${p.id}`)}
-                      className="text-left text-base text-[#d6d6d6] hover:text-[#ED6A32] transition-colors"
+                      onClick={() => navigate(`/projetos/${p.projectId}`)}
+                      className="flex flex-col items-start gap-1 text-left text-base text-[#d6d6d6] transition-colors hover:text-[#ED6A32]"
                     >
                       {p.name}
+                      <span className="text-sm text-[#8a8f8f]">{p.justification}</span>
+                      <span className="text-xs text-[#5a5f5f]">
+                        Similaridade: {Math.round(p.similarity * 100)}%
+                        {p.technologies.length > 0 && ` · ${p.technologies.join(', ')}`}
+                      </span>
                     </button>
                   ))}
                 />

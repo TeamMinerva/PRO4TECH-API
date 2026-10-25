@@ -338,20 +338,20 @@ export function useProjeto(projetoId?: string) {
       ),
     }));
 
-  const handleSalvar = async (): Promise<boolean> => {
+  const handleSalvar = async (): Promise<number | null> => {
     setFeedback(null);
 
     const chavesComErro = Object.keys(erros);
     if (chavesComErro.length > 0) {
       setCamposMarcados(new Set(chavesComErro));
       setFeedback({ tipo: 'erro', mensagem: 'Há campos obrigatórios não preenchidos.' });
-      return false;
+      return null;
     }
 
     try {
       if (projetoId) {
         await updateProject(projetoId, montarPayload(projeto));
-        return true;
+        return Number(projetoId);
       }
 
       const resposta = await fetch('http://localhost:3000/api/projects', {
@@ -361,10 +361,22 @@ export function useProjeto(projetoId?: string) {
       });
 
       if (resposta.ok) {
+        const resultado: unknown = await resposta.json();
+        if (
+          !resultado
+          || typeof resultado !== 'object'
+          || !('id' in resultado)
+          || typeof resultado.id !== 'number'
+          || !Number.isSafeInteger(resultado.id)
+          || resultado.id < 1
+        ) {
+          throw new Error('O servidor não retornou o identificador do projeto criado.');
+        }
+
         setProjeto(projetoInicial);
         setCamposMarcados(new Set());
         setFeedback({ tipo: 'sucesso', mensagem: 'Projeto salvo com sucesso!' });
-        return true;
+        return resultado.id;
       } else {
         setFeedback({
           tipo: 'erro',
@@ -378,7 +390,7 @@ export function useProjeto(projetoId?: string) {
         mensagem: erro instanceof Error ? erro.message : 'Não foi possível conectar ao servidor.',
       });
     }
-    return false;
+    return null;
   };
 
   return {
