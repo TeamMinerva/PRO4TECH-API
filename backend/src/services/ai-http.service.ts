@@ -1,5 +1,8 @@
 import http from "node:http";
 import https from "node:https";
+import dns from "node:dns";
+
+dns.setDefaultResultOrder("ipv4first");
 
 export const AI_URL = (process.env.AI_URL || "http://localhost:8000").replace(/\/$/, "");
 // Qwen and LightRAG may spend several minutes processing a request.

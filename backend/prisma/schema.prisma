@@ -8,20 +8,21 @@ datasource db {
 }
 
 model User {
-    id        Int      @id @default(autoincrement())
-    email     String   @unique
-    password  String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    id            Int            @id @default(autoincrement())
+    email         String         @unique
+    password      String
+    conversations Conversation[]
+    createdAt     DateTime       @default(now())
+    updatedAt     DateTime       @updatedAt
 }
 
 model Developer {
-    id           Int      @id @default(autoincrement())
+    id           Int          @id @default(autoincrement())
     name         String
     technologies Technology[]
-    active       Boolean  @default(true)
-    createdAt    DateTime @default(now())
-    updatedAt    DateTime @updatedAt
+    active       Boolean      @default(true)
+    createdAt    DateTime     @default(now())
+    updatedAt    DateTime     @updatedAt
     pbis         PBI[]
     bugs         Bug[]
 }
@@ -92,13 +93,32 @@ model PBI {
 model Bug {
     id          Int       @id @default(autoincrement())
     title       String
-    description     String
+    description String
     solution    String
     projectId   Int
     developerId Int
     createdAt   DateTime  @default(now())
     updatedAt   DateTime  @updatedAt
-
     project     Project   @relation(fields: [projectId], references: [id])
     developer   Developer @relation(fields: [developerId], references: [id])
+}
+
+model Conversation {
+    id        Int       @id @default(autoincrement())
+    title     String    @default("Nova Conversa")
+    userId    Int?
+    user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    messages  Message[]
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @updatedAt
+}
+
+model Message {
+    id             Int          @id @default(autoincrement())
+    content        String       @db.Text
+    role           String
+    sources        Json?
+    conversationId Int
+    conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+    createdAt      DateTime     @default(now())
 }

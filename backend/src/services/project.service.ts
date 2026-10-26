@@ -92,6 +92,17 @@ export async function createProject(data: CreateProjectData) {
 
     indexador.atualizarProjetoNoRAG(project.id);
 
+    const developerIds = new Set(
+        data.epics.flatMap((epic) =>
+            epic.features.flatMap((feature) =>
+                feature.pbis.flatMap((pbi) => pbi.developerIds)
+            )
+        )
+    );
+    for (const devId of developerIds) {
+        indexador.atualizarDesenvolvedorNoRAG(devId);
+    }
+
     return project;
 }
 
@@ -234,6 +245,14 @@ export async function getProjectById(id: number) {
 export const getProject = getProjectById;
 
 export async function updateProject(id: number, data: UpdateProjectData) {
+    const affectedDeveloperIds = new Set<number>(
+        data.epics.flatMap((epic: any) =>
+            epic.features.flatMap((feature: any) =>
+                feature.pbis.flatMap((pbi: any) => pbi.developerIds)
+            )
+        )
+    );
+
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const existing = await tx.project.findUnique({
             where: { id },
@@ -241,7 +260,17 @@ export async function updateProject(id: number, data: UpdateProjectData) {
                 epics: {
                     select: {
                         id: true,
-                        features: { select: { id: true, pbis: { select: { id: true } } } },
+                        features: {
+                            select: {
+                                id: true,
+                                pbis: {
+                                    select: {
+                                        id: true,
+                                        developers: { select: { id: true } },
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -249,6 +278,16 @@ export async function updateProject(id: number, data: UpdateProjectData) {
 
         if (!existing) {
             return null;
+        }
+
+        for (const epic of existing.epics) {
+            for (const feature of epic.features) {
+                for (const pbi of feature.pbis) {
+                    for (const dev of pbi.developers) {
+                        affectedDeveloperIds.add(dev.id);
+                    }
+                }
+            }
         }
 
         const epicIds = new Set(existing.epics.map((e: any) => e.id));
@@ -332,6 +371,9 @@ export async function updateProject(id: number, data: UpdateProjectData) {
 
     if (result) {
         indexador.atualizarProjetoNoRAG(id);
+        for (const devId of affectedDeveloperIds) {
+            indexador.atualizarDesenvolvedorNoRAG(devId);
+        }
     }
 
     return result;

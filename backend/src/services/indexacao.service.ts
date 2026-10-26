@@ -18,7 +18,11 @@ export class IndexacaoService {
       }
 
       const desenvolvedores = await prisma.developer.findMany({
-        include: { technologies: true }
+        include: {
+          technologies: true,
+          bugs: { include: { project: true } },
+          pbis: { include: { feature: { include: { epic: { include: { project: true } } } } } },
+        }
       });
 
       for (const dev of desenvolvedores) {
@@ -62,7 +66,11 @@ export class IndexacaoService {
     try {
       const dev = await prisma.developer.findUnique({
         where: { id: devId },
-        include: { technologies: true }
+        include: {
+          technologies: true,
+          bugs: { include: { project: true } },
+          pbis: { include: { feature: { include: { epic: { include: { project: true } } } } } },
+        }
       });
 
       if (dev) {
@@ -74,15 +82,76 @@ export class IndexacaoService {
     }
   }
 
-  private formatarDesenvolvedor(dev: any): string {
-    const techsDev = dev.technologies.map((t: any) => t.name).join(", ");
-    return `\n--- DESENVOLVEDOR: ${dev.name} ---\nO desenvolvedor '${dev.name}' está com status ativo: ${dev.active}. Competências técnicas: ${techsDev || 'Nenhuma registrada'}.\n`;
+  private formatarStatusProjeto(status: string): string {
+    const mapa: Record<string, string> = {
+      PLANNED: "Planejado",
+      IN_PROGRESS: "Em andamento",
+      DONE: "Concluído",
+    };
+    return mapa[status] || status;
   }
 
-  private formatarProjeto(projeto: any): string {
+  public formatarDesenvolvedor(dev: any): string {
+    const techsDev = (dev.technologies || []).map((t: any) => t.name).join(", ");
+    const statusDev = dev.active ? "Ativo" : "Inativo";
+
+    const projetosMap = new Map<number, { name: string; status: string }>();
+    for (const pbi of dev.pbis || []) {
+      const proj = pbi.feature?.epic?.project;
+      if (proj && !projetosMap.has(proj.id)) {
+        projetosMap.set(proj.id, {
+          name: proj.name,
+          status: this.formatarStatusProjeto(proj.status),
+        });
+      }
+    }
+    for (const bug of dev.bugs || []) {
+      const proj = bug.project;
+      if (proj && !projetosMap.has(proj.id)) {
+        projetosMap.set(proj.id, {
+          name: proj.name,
+          status: this.formatarStatusProjeto(proj.status),
+        });
+      }
+    }
+
+    const listaProjetos = Array.from(projetosMap.values())
+      .map((p) => `'${p.name}' (${p.status})`)
+      .join(", ");
+
+    let texto = `\n--- DESENVOLVEDOR: ${dev.name} ---\n`;
+    texto += `O desenvolvedor '${dev.name}' está com status ${statusDev}. `;
+    texto += `Competências técnicas: ${techsDev || "Nenhuma registrada"}. `;
+    texto += `Projetos em que participou: ${listaProjetos || "Nenhum projeto vinculado"}.\n`;
+
+    for (const pbi of dev.pbis || []) {
+      const feature = pbi.feature;
+      const epico = feature?.epic;
+      const projeto = epico?.project;
+
+      texto += `O desenvolvedor '${dev.name}' trabalha no PBI '${pbi.title}'`
+        + (feature?.name ? ` (Feature '${feature.name}'` : "")
+        + (epico?.name ? `, Épico '${epico.name}'` : "")
+        + (projeto?.name ? `, Projeto '${projeto.name}'` : "")
+        + (feature?.name ? `)` : "")
+        + `. História de usuário: ${pbi.userStory}. Critérios de aceite: ${pbi.acceptanceCriteria}.\n`;
+    }
+
+    for (const bug of dev.bugs || []) {
+      const projetoNome = bug.project?.name;
+      texto += `O desenvolvedor '${dev.name}' resolveu o problema/bug '${bug.title}'`
+        + (projetoNome ? ` no projeto '${projetoNome}'` : "")
+        + `. Descrição do problema: ${bug.description}. Solução aplicada: ${bug.solution}.\n`;
+    }
+
+    return texto;
+  }
+
+  public formatarProjeto(projeto: any): string {
     const techsProjeto = projeto.technologies.map((t: any) => t.name).join(", ");
+    const statusFormatado = this.formatarStatusProjeto(projeto.status);
     let texto = `\n--- PROJETO: ${projeto.name} ---\n`;
-    texto += `O projeto '${projeto.name}' está no status ${projeto.status}. Tecnologias usadas: ${techsProjeto || 'Não definidas'}.\n`;
+    texto += `O projeto '${projeto.name}' está no status ${statusFormatado}. Tecnologias usadas: ${techsProjeto || 'Não definidas'}.\n`;
 
     for (const bug of projeto.bugs) {
        texto += `Foi registrado o problema/bug '${bug.title}' no projeto '${projeto.name}'. Descrição: ${bug.description}. Solução aplicada: ${bug.solution}. O desenvolvedor associado é '${bug.developer.name}'.\n`;

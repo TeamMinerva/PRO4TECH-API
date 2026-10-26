@@ -107,6 +107,8 @@ services:
       LIGHTRAG_WORKSPACE: ${LIGHTRAG_WORKSPACE:-pro4tech}
     ports:
       - "8000:8000"
+    volumes:
+      - ./ai/app:/code/app
     depends_on:
       postgres:
         condition: service_started

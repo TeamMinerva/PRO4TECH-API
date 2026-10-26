@@ -12,8 +12,8 @@ export class AIServiceError extends Error {
   }
 }
 
-export { AIServiceError as ChatServiceError };
-
+export const ChatServiceError = AIServiceError;
+export type ChatServiceError = AIServiceError;
 interface AiErrorBody {
   detail?: unknown;
 }
@@ -71,6 +71,27 @@ export async function perguntarSobreProjeto(
 
   const resposta = await postarParaIA<{ answer: string }>("/chat/project", {
     project_id: projectId,
+    question,
+    history,
+  });
+  return resposta.answer;
+}
+
+export async function perguntarSobreDesenvolvedor(
+  developerId: number,
+  question: string,
+  history: ChatMessage[],
+): Promise<string> {
+  const desenvolvedor = await prisma.developer.findUnique({
+    where: { id: developerId },
+    select: { id: true },
+  });
+  if (!desenvolvedor) {
+    throw new ChatServiceError("Desenvolvedor não encontrado.", 404);
+  }
+
+  const resposta = await postarParaIA<{ answer: string }>("/chat/developer", {
+    developer_id: developerId,
     question,
     history,
   });

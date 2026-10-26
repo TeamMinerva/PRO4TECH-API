@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { History, Link2, X, ArrowUp } from "lucide-react";
+import { History, Link2, X, ArrowUp, Pencil, Trash2, Check } from "lucide-react";
+import { useGeneralChat } from "../hooks/useGeneralChat";
+import { MensagemMarkdown } from "../components/MensagemMarkdown";
+import type { FonteChat } from "../services/generalChatService";
 
 type Aba = "conversa" | "desenvolvedores" | "projetos";
 
@@ -10,17 +13,95 @@ const ABAS: { id: Aba; label: string; path: string }[] = [
   { id: "projetos", label: "Projetos", path: "/projetos" },
 ];
 
+const TAMANHO_MAXIMO = 8000;
+
 export default function Home() {
   const navigate = useNavigate();
   const abaAtiva: Aba = "conversa";
   const [mensagem, setMensagem] = useState("");
   const [historicoAberto, setHistoricoAberto] = useState(false);
   const [linksAberto, setLinksAberto] = useState(false);
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [tituloEdicao, setTituloEdicao] = useState("");
+
+  const {
+    conversas,
+    conversaAtivaId,
+    mensagens,
+    fontes,
+    enviando,
+    carregandoConversa,
+    erro,
+    enviarMensagem,
+    tentarNovamente,
+    selecionarConversa,
+    iniciarNovaConversa,
+    renomearConversa,
+    excluirConversa,
+  } = useGeneralChat();
+
+  const fimDaLista = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fimDaLista.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [mensagens, enviando, erro]);
+
+  function iniciarEdicao(conv: { id: number; title: string }) {
+    setEditandoId(conv.id);
+    setTituloEdicao(conv.title);
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setTituloEdicao("");
+  }
+
+  function confirmarEdicao(id: number) {
+    const limpo = tituloEdicao.trim();
+    if (limpo) {
+      void renomearConversa(id, limpo);
+    }
+    cancelarEdicao();
+  }
+
+  function removerConversa(id: number) {
+    if (editandoId === id) {
+      cancelarEdicao();
+    }
+    void excluirConversa(id);
+  }
+
+  function enviar(conteudo: string) {
+    if (!conteudo.trim() || enviando || carregandoConversa) return;
+    enviarMensagem(conteudo);
+    setMensagem("");
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMensagem("");
+    enviar(mensagem);
   }
+
+  function abrirFonte(fonte: FonteChat) {
+    if (fonte.type === "project" && fonte.entity_id) {
+      navigate(`/projetos/${fonte.entity_id}`);
+      return;
+    }
+    if (fonte.type === "developer") {
+      navigate("/desenvolvedores");
+      return;
+    }
+  }
+
+  function rotuloTipoFonte(tipo: FonteChat["type"]): string {
+    if (tipo === "project") return "Projeto";
+    if (tipo === "developer") return "Desenvolvedor";
+    return "Documento";
+  }
+
+  const vazio = mensagens.length === 0 && !carregandoConversa && !erro;
+  const podeEnviar =
+    mensagem.trim().length > 0 && !enviando && !carregandoConversa;
 
   return (
     <div
@@ -29,6 +110,7 @@ export default function Home() {
       data-name="inicial"
     >
       <aside
+        inert={!historicoAberto}
         className={`shrink-0 overflow-hidden rounded-[16px] bg-[#141617] transition-[width] duration-300 ${
           historicoAberto ? "w-[280px] sm:w-[320px]" : "w-0"
         }`}
@@ -50,12 +132,117 @@ export default function Home() {
               <X size={22} />
             </button>
           </div>
-          <p
-            className="px-6 text-[15px] text-[#3d3f40]"
-            style={{ fontFamily: "Poppins, sans-serif" }}
-          >
-            Nenhuma conversa ainda.
-          </p>
+
+          <div className="px-6 pb-4">
+            <button
+              type="button"
+              onClick={() => void iniciarNovaConversa()}
+              className="w-full rounded-[10px] border border-[#2d2d2d] bg-[#1c1e1f] py-2 text-[14px] text-white transition-colors hover:bg-[#2d2d2d]"
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              + Nova conversa
+            </button>
+          </div>
+
+          <div className="scroller flex-1 overflow-y-auto px-4 pb-4">
+            {conversas.length === 0 ? (
+              <p
+                className="px-2 text-[15px] text-[#3d3f40]"
+                style={{ fontFamily: "Poppins, sans-serif" }}
+              >
+                Nenhuma conversa ainda.
+              </p>
+            ) : (
+              conversas.map((conv) => {
+                const ativa = conversaAtivaId === conv.id;
+                const editando = editandoId === conv.id;
+
+                return (
+                  <div
+                    key={conv.id}
+                    className={`mb-2 flex w-full items-center justify-between gap-2 rounded-[10px] px-4 py-3 text-[14px] transition-colors ${
+                      ativa
+                        ? "bg-[#2d2d2d] text-[#ed6a32]"
+                        : "text-[#d6d6d6] hover:bg-[#1c1e1f]"
+                    }`}
+                    style={{ fontFamily: "Poppins, sans-serif" }}
+                  >
+                    {editando ? (
+                      <>
+                        <input
+                          type="text"
+                          autoFocus
+                          maxLength={120}
+                          value={tituloEdicao}
+                          onChange={(e) => setTituloEdicao(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              confirmarEdicao(conv.id);
+                            } else if (e.key === "Escape") {
+                              cancelarEdicao();
+                            }
+                          }}
+                          aria-label="Novo nome da conversa"
+                          className="min-w-0 flex-1 border-b border-[#ed6a32] bg-transparent text-[14px] text-white outline-none"
+                        />
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => confirmarEdicao(conv.id)}
+                            aria-label="Salvar nome da conversa"
+                            title="Salvar"
+                            className="text-[#5a5f5f] transition-colors hover:text-[#ED6A32]"
+                          >
+                            <Check size={16} strokeWidth={1.75} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelarEdicao}
+                            aria-label="Cancelar edição"
+                            title="Cancelar"
+                            className="text-[#5a5f5f] transition-colors hover:text-white"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void selecionarConversa(conv.id)}
+                          className="min-w-0 flex-1 truncate text-left"
+                        >
+                          {conv.title}
+                        </button>
+                        <div className="flex shrink-0 items-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicao(conv)}
+                            aria-label={`Renomear conversa ${conv.title}`}
+                            title="Renomear conversa"
+                            className="text-[#5a5f5f] transition-colors hover:text-[#ED6A32]"
+                          >
+                            <Pencil size={15} strokeWidth={1.75} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removerConversa(conv.id)}
+                            aria-label={`Excluir conversa ${conv.title}`}
+                            title="Excluir conversa"
+                            className="text-[#5a5f5f] transition-colors hover:text-white"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </aside>
 
@@ -100,39 +287,157 @@ export default function Home() {
               type="button"
               onClick={() => setLinksAberto(true)}
               aria-label="Links de referência"
-              className="shrink-0 text-[#5a5f5f] transition-colors hover:text-white"
+              className="relative shrink-0 text-[#5a5f5f] transition-colors hover:text-white"
             >
               <Link2 size={22} strokeWidth={1.5} className="sm:size-6" />
+              {fontes.length > 0 && (
+                <span
+                  aria-label={`${fontes.length} fontes utilizadas`}
+                  className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#ED6A32] text-[10px] font-medium text-white"
+                >
+                  {fontes.length}
+                </span>
+              )}
             </button>
           )}
         </header>
 
-        <main className="flex flex-1 flex-col items-center justify-center">
-          <p
-            className="text-center font-normal leading-none text-white text-[22px] sm:text-[30px] md:text-[38px] lg:text-[44px]"
-            style={{ fontFamily: "Outfit, sans-serif" }}
-            data-node-id="29:92"
-          >
-            começe por aqui.
-          </p>
+        <main
+          role={vazio ? undefined : "log"}
+          aria-live={vazio ? undefined : "polite"}
+          className={`my-4 flex min-h-0 flex-1 flex-col ${
+            vazio
+              ? "items-center justify-center gap-6"
+              : "scroller overflow-y-auto pr-1"
+          }`}
+          style={{ fontFamily: "Poppins, sans-serif" }}
+        >
+          {vazio ? (
+            <p
+              className="text-center font-normal leading-none text-white text-[22px] sm:text-[30px] md:text-[38px] lg:text-[44px]"
+              style={{ fontFamily: "Outfit, sans-serif" }}
+              data-node-id="29:92"
+            >
+              começe por aqui.
+            </p>
+          ) : (
+            <div className="mt-auto flex flex-col gap-4 py-2">
+              {carregandoConversa && (
+                <div
+                  className="flex items-center gap-2 self-start rounded-[14px] bg-[#2d2d2d] px-4 py-3 text-[14px] text-[#9a9fa0]"
+                  role="status"
+                >
+                  Carregando mensagens...
+                </div>
+              )}
+
+              {mensagens.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`max-w-[85%] break-words rounded-[14px] px-4 py-3 text-[14px] leading-relaxed text-white ${
+                    msg.role === "user"
+                      ? "self-end whitespace-pre-wrap bg-[#3f3f3f]"
+                      : "min-w-0 self-start bg-[#2d2d2d]"
+                  }`}
+                >
+                  {msg.role === "assistant" ? (
+                    <>
+                      <MensagemMarkdown conteudo={msg.content} />
+                      {msg.fontes && msg.fontes.length > 0 && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#3f3f3f] pt-2.5 text-[12px]">
+                          <span className="text-[#8a8f8f]">
+                            Contexto utilizado:
+                          </span>
+                          {msg.fontes.map((fonte) => {
+                            const clicavel =
+                              (fonte.type === "project" && !!fonte.entity_id) ||
+                              fonte.type === "developer";
+                            return (
+                              <button
+                                key={fonte.id}
+                                type="button"
+                                disabled={!clicavel}
+                                onClick={() => abrirFonte(fonte)}
+                                className={`rounded-[8px] border border-[#3f3f3f] bg-[#191b1c] px-2.5 py-1 text-[#d6d6d6] transition-colors ${
+                                  clicavel
+                                    ? "hover:border-[#ED6A32] hover:text-[#ED6A32]"
+                                    : "cursor-default"
+                                }`}
+                              >
+                                <span className="text-[#8a8f8f]">
+                                  {rotuloTipoFonte(fonte.type)}:
+                                </span>{" "}
+                                {fonte.title}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    msg.content
+                  )}
+                </div>
+              ))}
+
+              {enviando && (
+                <div
+                  className="flex items-center gap-2 self-start rounded-[14px] bg-[#2d2d2d] px-4 py-3 text-[14px] text-[#9a9fa0]"
+                  role="status"
+                >
+                  <span className="flex gap-1" aria-hidden="true">
+                    <span className="size-1.5 animate-pulse rounded-full bg-[#9a9fa0]" />
+                    <span className="size-1.5 animate-pulse rounded-full bg-[#9a9fa0] [animation-delay:150ms]" />
+                    <span className="size-1.5 animate-pulse rounded-full bg-[#9a9fa0] [animation-delay:300ms]" />
+                  </span>
+                  Pensando...
+                </div>
+              )}
+
+              {erro && !enviando && (
+                <div
+                  role="alert"
+                  className="flex max-w-[85%] flex-col gap-2 self-start rounded-[14px] border border-[#ED6A32]/40 px-4 py-3 text-[14px] text-[#ED6A32]"
+                >
+                  <span>{erro}</span>
+                  <button
+                    type="button"
+                    onClick={tentarNovamente}
+                    className="self-start text-[#d6d6d6] underline transition-colors hover:text-white"
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
+
+              <div ref={fimDaLista} />
+            </div>
+          )}
         </main>
 
         <form onSubmit={handleSubmit} data-node-id="29:95">
-          <div className="flex h-[52px] items-center justify-between rounded-[12px] border border-[#2d2d2d] px-4 sm:h-[60px] sm:rounded-[14px] sm:px-5 lg:h-[68px]">
+          <div className="flex h-[52px] items-center justify-between rounded-[12px] border border-[#2d2d2d] px-4 focus-within:border-[#3f3f3f] sm:h-[60px] sm:rounded-[14px] sm:px-5 lg:h-[68px]">
             <input
               type="text"
-              placeholder="Digite uma mensagem."
+              placeholder="Pergunte sobre projetos, desenvolvedores, épicos, PBIs ou bugs..."
+              aria-label="Digite uma mensagem."
+              maxLength={TAMANHO_MAXIMO}
+              disabled={enviando || carregandoConversa}
               value={mensagem}
               onChange={(e) => setMensagem(e.target.value)}
-              className="w-full bg-transparent border-0 p-0 m-0 text-[14px] text-white placeholder-[#3d3f40] outline-none sm:text-[16px] lg:text-[17px]"
+              className="w-full bg-transparent border-0 p-0 m-0 text-[14px] text-white placeholder-[#3d3f40] outline-none disabled:opacity-60 sm:text-[16px] lg:text-[17px]"
               style={{ fontFamily: "Poppins, sans-serif" }}
               data-node-id="32:98"
             />
             <button
               type="submit"
               aria-label="Enviar mensagem"
-              disabled={!mensagem.trim()}
-              className="flex size-[26px] shrink-0 items-center justify-center text-[#3d3f40] transition-colors hover:text-[#ED6A32] disabled:opacity-50 sm:size-[30px]"
+              disabled={!podeEnviar}
+              className={`flex size-[26px] shrink-0 items-center justify-center transition-colors sm:size-[30px] ${
+                podeEnviar
+                  ? "text-[#ED6A32] hover:text-[#ff8555]"
+                  : "cursor-not-allowed text-[#3d3f40] disabled:opacity-50"
+              }`}
             >
               <ArrowUp size={18} className="sm:size-[19px]" />
             </button>
@@ -141,6 +446,7 @@ export default function Home() {
       </div>
 
       <aside
+        inert={!linksAberto}
         className={`shrink-0 overflow-hidden rounded-[16px] bg-[#141617] transition-[width] duration-300 ${
           linksAberto ? "w-[280px] sm:w-[320px]" : "w-0"
         }`}
@@ -162,12 +468,45 @@ export default function Home() {
               <X size={22} />
             </button>
           </div>
-          <p
-            className="px-6 text-[15px] text-[#3d3f40]"
-            style={{ fontFamily: "Poppins, sans-serif" }}
-          >
-            Nenhum link de referência ainda.
-          </p>
+          {fontes.length === 0 ? (
+            <p
+              className="px-6 text-[15px] text-[#3d3f40]"
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              Nenhum link de referência ainda.
+            </p>
+          ) : (
+            <div
+              className="scroller flex flex-1 flex-col gap-2.5 overflow-y-auto px-6 pb-6"
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              {fontes.map((fonte) => {
+                const clicavel =
+                  (fonte.type === "project" && !!fonte.entity_id) ||
+                  fonte.type === "developer";
+                return (
+                  <button
+                    key={fonte.id}
+                    type="button"
+                    disabled={!clicavel}
+                    onClick={() => abrirFonte(fonte)}
+                    className={`flex flex-col items-start gap-0.5 rounded-[12px] border border-[#2d2d2d] bg-[#191b1c] px-4 py-3 text-left transition-colors ${
+                      clicavel
+                        ? "hover:border-[#ED6A32] hover:text-white"
+                        : "cursor-default"
+                    }`}
+                  >
+                    <span className="text-[11px] uppercase tracking-wider text-[#ED6A32]">
+                      {rotuloTipoFonte(fonte.type)}
+                    </span>
+                    <span className="text-[14px] text-[#d6d6d6] break-words">
+                      {fonte.title}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </aside>
     </div>

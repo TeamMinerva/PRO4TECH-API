@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowUp, MessageSquare, Sparkles } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { criarEnviarChatProjeto } from '../services/chatService';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BotaoAdicionar } from '../components/BotaoAdicionar';
 import { SeletorDesenvolvedores } from '../components/SeletorDesenvolvedores';
@@ -15,10 +16,10 @@ import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { useDropdown } from '../hooks/useDropdown';
 import { STATUS_OPCOES, useProjeto } from '../hooks/useProjeto';
 import { useTecnologias } from '../hooks/useTecnologias';
-import { criarEnviarChatProjeto } from '../services/chatService';
 
 export default function CadastroProjeto() {
   const { id } = useParams();
+  const enviarChat = useMemo(() => criarEnviarChatProjeto(id ?? ''), [id]);
   const {
     projeto,
     editando,
@@ -422,11 +423,7 @@ export default function CadastroProjeto() {
         </button>
       )}
 
-      <ChatLateral
-        aberto={chatAberto}
-        onFechar={() => setChatAberto(false)}
-        onEnviar={criarEnviarChatProjeto(id ?? '')}
-      />
+      <ChatLateral key={id} aberto={chatAberto} onFechar={() => setChatAberto(false)} onEnviar={enviarChat} titulo="Chat do projeto" />
     </div>
   );
 }
