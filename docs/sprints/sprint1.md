@@ -9,6 +9,7 @@
 </p>
 
 ## 💻 Demonstração do Sistema
+![Demonstração](/docs/assets/sprint1.gif)
 
 ## 📝 Backlog da Sprint
 

@@ -20,19 +20,63 @@ wsl --install
 git clone https://github.com/TeamMinerva/PRO4TECH-API.git
 ```
 
-### 2. Configurar .env
-Renomeie o arquivo `.env.example`, localizado na pasta backend, para `.env`.
+### 2. Configurar os arquivos `.env`
 
-Abra o arquivo e altere a senha para:
+O projeto utiliza dois arquivos de configuração `.env`: um para o backend e outro para o serviço de Inteligência Artificial (IA).
 
+**2.1. Configurar o backend**
+
+Renomeie o arquivo `.env.example`, localizado na pasta `backend`, para `.env`.
+
+Abra o arquivo e configure a senha do banco de dados como:
+
+```env
 postgres
+```
+
+Certifique-se de que as demais configurações estejam preenchidas conforme o arquivo de exemplo.
+
+**2.2. Configurar a IA**
+
+O serviço de IA também utiliza um arquivo `.env`, localizado na raiz do projeto.
+
+Verifique se esse arquivo está presente na raiz do repositório. **Não é necessário alterar suas configurações** para realizar a instalação padrão.
 
 ### 3. Subir a aplicação com Docker
 
+**3.1. Iniciar a aplicação principal**
+
 Na raiz do projeto, execute:
+
+```bash
+docker compose up --build -d
 ```
-docker-compose up --build
+
+Esse comando constrói as imagens necessárias e inicia os serviços definidos no arquivo `docker-compose.yml` em segundo plano.
+
+**3.2. Iniciar o serviço de IA**
+
+Após iniciar a aplicação principal, execute um dos comandos abaixo, conforme o hardware disponível.
+
+**Opção 1 — Execução padrão (CPU)**
+
+```bash
+npm run docker:up:ai
 ```
+
+Utilize essa opção para iniciar o serviço de IA sem a configuração específica para GPU.
+
+**Opção 2 — Execução com GPU**
+
+```bash
+npm run docker:up:ai:gpu
+```
+
+Essa opção utiliza uma configuração adicional do Docker Compose para habilitar o uso de GPU, podendo proporcionar um processamento mais rápido.
+
+**Atenção:** utilize a opção com GPU somente se possuir uma placa de vídeo dedicada compatível e os drivers e componentes necessários configurados para uso com Docker.
+
+
 ### 4. Executar migrations do Prisma
 ```
 docker compose exec backend npx prisma migrate deploy
