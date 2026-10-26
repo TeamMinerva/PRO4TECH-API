@@ -3,6 +3,8 @@ import Login from "./pages/Login";
 import Cadastro from "./pages/Cadastro";
 import CadastroProjeto from "./pages/CadastroProjeto";
 import Galeria from "./pages/Galeria";
+import DetalhesProjeto from "./pages/DetalhesProjeto";
+import DesenvolvedorDetalhes from "./pages/DesenvolvedorDetalhes";
 import Home from "./pages/Home";
 
 function App() {
@@ -15,7 +17,10 @@ function App() {
         <Route path="/galeria" element={<Galeria />} />
         <Route path="/home" element={<Home />} />
         <Route path="/desenvolvedores" element={<Galeria />} />
+        <Route path="/desenvolvedores/:id" element={<DesenvolvedorDetalhes />} />
         <Route path="/projetos" element={<Galeria />} />
+        <Route path="/projetos/:id" element={<DetalhesProjeto />} />
+        <Route path="/projetos/:id/editar" element={<CadastroProjeto />} />
       </Routes>
     </BrowserRouter>
   );

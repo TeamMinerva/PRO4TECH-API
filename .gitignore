@@ -9,6 +9,17 @@ yarn-error.log*
 pnpm-debug.log*
 
 # ==========================================
+# Python (servico ai/)
+# ==========================================
+
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+ai/.venv/
+*.py[cod]
+
+# ==========================================
 # Environment variables
 # ==========================================
 
@@ -46,6 +57,7 @@ coverage/
 
 *.pid
 *.pid.lock
+docker-compose.override.yml
 
 # ==========================================
 # IDE / Editor

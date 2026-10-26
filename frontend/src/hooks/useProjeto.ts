@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getProjectById, updateProject, type ProjetoDetalhes } from '../services/projectService';
 
 export interface PBI {
   id: string;
@@ -28,6 +29,7 @@ export interface Epico {
 export interface Projeto {
   nome: string;
   status: string;
+  // ids das tecnologias (como string, igual aos ids de desenvolvedores)
   tecnologias: string[];
   epicos: Epico[];
 }
@@ -44,33 +46,63 @@ const projetoInicial: Projeto = {
   epicos: [],
 };
 
-export const TECNOLOGIAS_DISPONIVEIS = [
-  'React', 'Node.js', 'TypeScript', 'JavaScript', 'Python',
-  'Java', 'C#', 'Go', 'Docker', 'PostgreSQL', 'MySQL',
-  'MongoDB', 'Tailwind CSS', 'Next.js', 'Express', 'Prisma', 'Git',
-];
-
 export const STATUS_OPCOES = [
   { valor: 'PLANNED', label: 'Planejado' },
   { valor: 'IN_PROGRESS', label: 'Em andamento' },
   { valor: 'DONE', label: 'Concluído' },
 ];
 
+// Itens já salvos têm id numérico (string); os criados na tela têm UUID e vão como -1 (novo).
+const idDoBanco = (id: string) => (/^\d+$/.test(id) ? Number(id) : -1);
+
+function projetoDeDetalhes(dados: ProjetoDetalhes): Projeto {
+  return {
+    nome: dados.name,
+    status: dados.status,
+    tecnologias: dados.technologyIds
+      ? dados.technologyIds.map(String)
+      : (dados.technologies || []),
+    epicos: (dados.epics || []).map((e) => ({
+      id: String(e.id),
+      nome: e.name,
+      descricao: e.description,
+      objetivo: e.objective,
+      resultadoEsperado: e.expectedResult,
+      features: e.features.map((f) => ({
+        id: String(f.id),
+        nome: f.name,
+        descricao: f.description,
+        criteriosAprovacao: f.approvalCriteria,
+        pbis: f.pbis.map((p) => ({
+          id: String(p.id),
+          titulo: p.title,
+          userStory: p.userStory,
+          criteriosAprovacao: p.acceptanceCriteria,
+          desenvolvedores: p.developers.map((d) => String(d.id)),
+        })),
+      })),
+    })),
+  };
+}
+
 function montarPayload(projeto: Projeto) {
   return {
     name: projeto.nome,
-    technologies: projeto.tecnologias,
+    technologyIds: projeto.tecnologias.map(Number),
     status: projeto.status,
     epics: projeto.epicos.map((epico) => ({
+      id: idDoBanco(epico.id),
       name: epico.nome,
       description: epico.descricao,
       objective: epico.objetivo,
       expectedResult: epico.resultadoEsperado,
       features: epico.features.map((feature) => ({
+        id: idDoBanco(feature.id),
         name: feature.nome,
         description: feature.descricao,
         approvalCriteria: feature.criteriosAprovacao,
         pbis: feature.pbis.map((pbi) => ({
+          id: idDoBanco(pbi.id),
           title: pbi.titulo,
           userStory: pbi.userStory,
           acceptanceCriteria: pbi.criteriosAprovacao,
@@ -115,10 +147,40 @@ function validarProjeto(projeto: Projeto): Record<string, string> {
   return erros;
 }
 
-export function useProjeto() {
+export function useProjeto(projetoId?: string) {
   const [projeto, setProjeto] = useState<Projeto>(projetoInicial);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [camposMarcados, setCamposMarcados] = useState<Set<string>>(new Set());
+
+  const [carregando, setCarregando] = useState(Boolean(projetoId));
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
+  const editando = Boolean(projetoId);
+
+  useEffect(() => {
+    if (!projetoId) return;
+
+    let ativo = true;
+    setCarregando(true);
+    setErroCarga(null);
+
+    getProjectById(projetoId)
+      .then((dados) => {
+        if (ativo) {
+          setProjeto(projetoDeDetalhes(dados));
+          setCarregando(false);
+        }
+      })
+      .catch((err) => {
+        if (ativo) {
+          setErroCarga(err instanceof Error ? err.message : 'Erro ao buscar projeto.');
+          setCarregando(false);
+        }
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [projetoId]);
 
   const erros = validarProjeto(projeto);
   const erroDoCampo = (chave: string) => (camposMarcados.has(chave) ? erros[chave] : undefined);
@@ -276,17 +338,22 @@ export function useProjeto() {
       ),
     }));
 
-  const handleSalvar = async () => {
+  const handleSalvar = async (): Promise<number | null> => {
     setFeedback(null);
 
     const chavesComErro = Object.keys(erros);
     if (chavesComErro.length > 0) {
       setCamposMarcados(new Set(chavesComErro));
       setFeedback({ tipo: 'erro', mensagem: 'Há campos obrigatórios não preenchidos.' });
-      return;
+      return null;
     }
 
     try {
+      if (projetoId) {
+        await updateProject(projetoId, montarPayload(projeto));
+        return Number(projetoId);
+      }
+
       const resposta = await fetch('http://localhost:3000/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -294,9 +361,22 @@ export function useProjeto() {
       });
 
       if (resposta.ok) {
+        const resultado: unknown = await resposta.json();
+        if (
+          !resultado
+          || typeof resultado !== 'object'
+          || !('id' in resultado)
+          || typeof resultado.id !== 'number'
+          || !Number.isSafeInteger(resultado.id)
+          || resultado.id < 1
+        ) {
+          throw new Error('O servidor não retornou o identificador do projeto criado.');
+        }
+
         setProjeto(projetoInicial);
         setCamposMarcados(new Set());
         setFeedback({ tipo: 'sucesso', mensagem: 'Projeto salvo com sucesso!' });
+        return resultado.id;
       } else {
         setFeedback({
           tipo: 'erro',
@@ -304,13 +384,20 @@ export function useProjeto() {
         });
       }
     } catch (erro) {
-      console.error('Erro de conexão:', erro);
-      setFeedback({ tipo: 'erro', mensagem: 'Não foi possível conectar ao servidor.' });
+      console.error('Erro ao salvar:', erro);
+      setFeedback({
+        tipo: 'erro',
+        mensagem: erro instanceof Error ? erro.message : 'Não foi possível conectar ao servidor.',
+      });
     }
+    return null;
   };
 
   return {
     projeto,
+    editando,
+    carregando,
+    erroCarga,
     feedback,
     erroDoCampo,
     temErrosVisiveis,
