@@ -1,7 +1,9 @@
+import logging
 import os
 import re
+from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import numpy as np
 from lightrag import LightRAG, QueryParam
@@ -10,6 +12,8 @@ from lightrag.utils import wrap_embedding_func_with_attrs
 
 from app import ollama_client
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 os.environ.setdefault("LIGHTRAG_KV_STORAGE", "PGKVStorage")
 os.environ.setdefault("LIGHTRAG_VECTOR_STORAGE", "PGVectorStorage")
@@ -64,8 +68,17 @@ async def startup() -> LightRAG:
         workspace=settings.lightrag_workspace,
         llm_model_func=llm_model_func,
         embedding_func=embedding_func,
+        default_embedding_timeout=int(settings.ai_timeout_seconds),
+        default_llm_timeout=int(settings.ai_timeout_seconds),
     )
     await rag_instance.initialize_storages()
+    logger.info(
+        "event=lightrag_initialized version=%s workspace=%s embedding_model=%s embedding_dim=%s",
+        version("lightrag-hku"),
+        settings.lightrag_workspace,
+        settings.embedding_model,
+        settings.embedding_dim,
+    )
     return rag_instance
 
 
@@ -79,11 +92,97 @@ async def shutdown() -> None:
 async def insert(text: str, doc_id: str | None = None) -> None:
     rag_inst = get_rag()
     if doc_id:
-        try:
-            await rag_inst.adelete_by_doc_id(doc_id)
-        except Exception:
-            pass
-        await rag_inst.ainsert(text, ids=[doc_id])
+        deletion = await rag_inst.adelete_by_doc_id(doc_id)
+        deletion_status = getattr(deletion, "status", None)
+        if deletion_status is not None and deletion_status not in {"success", "not_found"}:
+            raise RuntimeError(
+                f"Não foi possível substituir o documento {doc_id}: "
+                f"{deletion_status}."
+            )
+
+        if hasattr(rag_inst, "apipeline_enqueue_documents") and hasattr(
+            rag_inst, "apipeline_process_enqueue_documents"
+        ):
+            await rag_inst.apipeline_enqueue_documents(
+                text,
+                ids=[doc_id],
+                process_options="!",
+            )
+            await rag_inst.apipeline_process_enqueue_documents()
+        else:
+            await rag_inst.ainsert(text, ids=[doc_id])
+
+        status = await rag_inst.doc_status.get_by_id(doc_id)
+        if not status:
+            logger.error(
+                "event=lightrag_index_verification_failed document_id=%s reason=missing_status",
+                doc_id,
+            )
+            raise RuntimeError(f"O documento {doc_id} não foi persistido no LightRAG.")
+
+        raw_status = status.get("status")
+        document_status = getattr(raw_status, "value", raw_status)
+        chunk_ids = list(status.get("chunks_list") or [])
+        if document_status != "processed" or not chunk_ids:
+            logger.error(
+                "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d track_id=%s",
+                doc_id,
+                document_status,
+                len(chunk_ids),
+                status.get("track_id"),
+            )
+            raise RuntimeError(
+                f"O documento {doc_id} não foi indexado completamente "
+                f"(status={document_status}, chunks={len(chunk_ids)})."
+            )
+
+        chunks = await rag_inst.text_chunks.get_by_ids(chunk_ids)
+        valid_chunks = [
+            chunk_id
+            for chunk_id, chunk in zip(chunk_ids, chunks)
+            if chunk and chunk.get("content", "").strip()
+        ]
+        vectors = await recuperar_vetores_chunks(doc_id, valid_chunks)
+        missing_vectors = set(valid_chunks) - set(vectors)
+        valid_vector_ids = set()
+        for chunk_id in valid_chunks:
+            if chunk_id not in vectors:
+                continue
+            try:
+                vector = np.asarray(vectors[chunk_id], dtype=float)
+            except (TypeError, ValueError):
+                continue
+            if (
+                vector.ndim == 1
+                and vector.size == settings.embedding_dim
+                and np.all(np.isfinite(vector))
+            ):
+                norma = float(np.linalg.norm(vector))
+                if np.isfinite(norma) and norma > 0:
+                    valid_vector_ids.add(chunk_id)
+        invalid_vectors = set(valid_chunks) - valid_vector_ids
+        if (
+            len(valid_chunks) != len(chunk_ids)
+            or missing_vectors
+            or invalid_vectors
+        ):
+            logger.error(
+                "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d valid_text_chunks=%d returned_vectors=%d associated_vectors=%d valid_vectors=%d missing_vectors=%d invalid_vectors=%d embedding_dimension=%d",
+                doc_id,
+                document_status,
+                len(chunk_ids),
+                len(valid_chunks),
+                len(vectors),
+                len(set(valid_chunks) & set(vectors)),
+                len(valid_vector_ids),
+                len(missing_vectors),
+                len(invalid_vectors),
+                settings.embedding_dim,
+            )
+            raise RuntimeError(
+                f"O documento {doc_id} foi processado, mas seus chunks ou "
+                "embeddings não estão todos disponíveis."
+            )
     else:
         await rag_inst.ainsert(text)
 
@@ -92,17 +191,22 @@ async def query(question: str, mode: str = "mix") -> str:
     return await get_rag().aquery(question, param=QueryParam(mode=mode))
 
 # --------------------------------------------------------------------------
-# Recuperacao de contexto restrita a UM projeto
+# Recuperacao de contexto restrita a UM projeto ou UM desenvolvedor
 # --------------------------------------------------------------------------
 # O LightRAG (mix/local/global) consulta o grafo inteiro e nao filtra por
-# documento, o que misturaria dados de outros projetos na resposta. Como cada
-# projeto e indexado como um documento proprio (doc_id "projeto_<id>", veja
-# indexacao.service.ts no backend), buscamos so os chunks desse documento e
-# ranqueamos por similaridade com a pergunta usando os vetores ja gravados.
+# documento, o que misturaria dados de outros registros na resposta. Como cada
+# projeto/desenvolvedor e indexado como um documento proprio (doc_id
+# "projeto_<id>" ou "dev_<id>", veja indexacao.service.ts no backend), buscamos
+# so os chunks desse documento e ranqueamos por similaridade com a pergunta
+# usando os vetores ja gravados.
 # Efeito colateral bom: nenhuma chamada ao LLM na etapa de recuperacao.
 
 def doc_id_projeto(project_id: int) -> str:
     return f"projeto_{project_id}"
+
+
+def doc_id_desenvolvedor(developer_id: int) -> str:
+    return f"dev_{developer_id}"
 
 
 def _cosseno(a: np.ndarray, b: np.ndarray) -> float:
@@ -110,23 +214,49 @@ def _cosseno(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / denom) if denom else 0.0
 
 
-async def recuperar_contexto_projeto(
-    project_id: int,
-    question: str,
-    max_chars: int | None = None,
-    top_k: int | None = None,
-) -> str:
-    max_chars = max_chars or settings.chat_context_max_chars
-    top_k = top_k or settings.chat_context_top_k
+class ChunkProjeto(TypedDict):
+    id: str
+    ordem: int
+    texto: str
 
+
+async def recuperar_chunks_projeto(project_id: int) -> list[ChunkProjeto]:
     rag = get_rag()
-    status = await rag.doc_status.get_by_id(doc_id_projeto(project_id))
-    chunk_ids = list((status or {}).get("chunks_list") or [])
+    document_id = doc_id_projeto(project_id)
+    status = await rag.doc_status.get_by_id(document_id)
+    if status is None:
+        logger.warning(
+            "event=lightrag_project_document_missing project_id=%d document_id=%s",
+            project_id,
+            document_id,
+        )
+        return []
+
+    raw_status = status.get("status")
+    document_status = getattr(raw_status, "value", raw_status)
+    if document_status != "processed":
+        logger.warning(
+            "event=lightrag_project_document_not_processed project_id=%d document_id=%s status=%s status_chunk_count=%s",
+            project_id,
+            document_id,
+            document_status,
+            status.get("chunks_count"),
+        )
+        return []
+
+    chunk_ids = list(status.get("chunks_list") or [])
     if not chunk_ids:
-        return ""
+        logger.warning(
+            "event=lightrag_project_chunks_missing project_id=%d document_id=%s status=%s status_chunk_count=%s",
+            project_id,
+            document_id,
+            status.get("status"),
+            status.get("chunks_count"),
+        )
+        return []
 
     registros = await rag.text_chunks.get_by_ids(chunk_ids)
-    chunks = [
+    chunks: list[ChunkProjeto] = [
         {
             "id": cid,
             "ordem": reg.get("chunk_order_index", 0),
@@ -135,16 +265,145 @@ async def recuperar_contexto_projeto(
         for cid, reg in zip(chunk_ids, registros)
         if reg and reg.get("content", "").strip()
     ]
+    chunks.sort(key=lambda c: c["ordem"])
+    if len(chunks) != len(chunk_ids):
+        logger.warning(
+            "event=lightrag_project_text_chunks_incomplete project_id=%d document_id=%s chunk_ids=%d valid_text_records=%d",
+            project_id,
+            document_id,
+            len(chunk_ids),
+            len(chunks),
+        )
+    return chunks
+
+
+async def recuperar_vetores_chunks(
+    document_id: str,
+    chunk_ids: list[str],
+    project_id: int | None = None,
+) -> dict[str, list[float]]:
+    rag = get_rag()
+    try:
+        vetores = await rag.chunks_vdb.get_vectors_by_ids(chunk_ids)
+    except TimeoutError:
+        logger.exception(
+            "event=lightrag_vector_lookup_timeout project_id=%s document_id=%s requested_chunks=%d",
+            project_id,
+            document_id,
+            len(chunk_ids),
+        )
+        raise
+    except Exception:
+        logger.exception(
+            "event=lightrag_vector_lookup_failed project_id=%s document_id=%s requested_chunks=%d",
+            project_id,
+            document_id,
+            len(chunk_ids),
+        )
+        raise
+
+    if not isinstance(vetores, dict):
+        logger.error(
+            "event=lightrag_vector_lookup_invalid_response project_id=%s document_id=%s requested_chunks=%d response_type=%s",
+            project_id,
+            document_id,
+            len(chunk_ids),
+            type(vetores).__name__,
+        )
+        raise RuntimeError("O armazenamento vetorial retornou um formato inválido.")
+
+    associados = set(chunk_ids) & set(vetores)
+    logger.info(
+        "event=lightrag_vector_lookup_complete project_id=%s document_id=%s requested_chunks=%d returned_vectors=%d associated_vectors=%d",
+        project_id,
+        document_id,
+        len(chunk_ids),
+        len(vetores),
+        len(associados),
+    )
+    if len(associados) != len(chunk_ids):
+        logger.warning(
+            "event=lightrag_vectors_missing project_id=%s document_id=%s requested_chunks=%d returned_vectors=%d associated_vectors=%d",
+            project_id,
+            document_id,
+            len(chunk_ids),
+            len(vetores),
+            len(associados),
+        )
+        if chunk_ids:
+            database = getattr(rag.chunks_vdb, "db", None)
+            health_check = getattr(database, "query", None)
+            if health_check is None:
+                logger.warning(
+                    "event=lightrag_vector_storage_health_check_unavailable project_id=%s document_id=%s",
+                    project_id,
+                    document_id,
+                )
+                return vetores
+            try:
+                # LightRAG 1.5.7 logs and suppresses SQL errors in
+                # get_vectors_by_ids; this health-only query distinguishes an
+                # unavailable PostgreSQL connection from IDs with no vectors.
+                await health_check("SELECT 1")
+            except Exception:
+                logger.exception(
+                    "event=lightrag_vector_storage_unavailable project_id=%s document_id=%s requested_chunks=%d returned_vectors=%d",
+                    project_id,
+                    document_id,
+                    len(chunk_ids),
+                    len(vetores),
+                )
+                raise
+            logger.warning(
+                "event=lightrag_vector_storage_reachable_but_ids_missing project_id=%s document_id=%s requested_chunks=%d returned_vectors=%d associated_vectors=%d",
+                project_id,
+                document_id,
+                len(chunk_ids),
+                len(vetores),
+                len(associados),
+            )
+    return vetores
+
+
+async def _recuperar_contexto_documento(
+    doc_id: str,
+    question: str,
+    max_chars: int | None = None,
+    top_k: int | None = None,
+    normalizar: bool = False,
+) -> str:
+    max_chars = max_chars or settings.chat_context_max_chars
+    top_k = top_k or settings.chat_context_top_k
+
+    rag = get_rag()
+    status = await rag.doc_status.get_by_id(doc_id)
+    chunk_ids = _extrair_chunks_list(status)
+    if not chunk_ids:
+        return ""
+
+    registros = await rag.text_chunks.get_by_ids(chunk_ids)
+    chunks = [
+        {
+            "id": cid,
+            "ordem": reg.get("chunk_order_index", 0),
+            "texto": (
+                normalizar_termos_banco(reg["content"].strip())
+                if normalizar
+                else reg["content"].strip()
+            ),
+        }
+        for cid, reg in zip(chunk_ids, registros)
+        if reg and reg.get("content", "").strip()
+    ]
     if not chunks:
         return ""
-    chunks.sort(key=lambda c: c["ordem"])
 
-    # Projeto pequeno: manda tudo, na ordem original.
+    # Documento pequeno: manda tudo, na ordem original.
     if sum(len(c["texto"]) for c in chunks) <= max_chars:
         return "\n\n".join(c["texto"] for c in chunks)
 
-    # Projeto grande: ranqueia por similaridade com a pergunta.
-    vetores = await rag.chunks_vdb.get_vectors_by_ids([c["id"] for c in chunks])
+    # Documento grande: ranqueia por similaridade com a pergunta.
+    vetores = await recuperar_vetores_chunks(doc_id, [c["id"] for c in chunks])
     consulta = np.array((await embedding_func([question]))[0], dtype=float)
 
     pontuados = sorted(
@@ -157,7 +416,7 @@ async def recuperar_contexto_projeto(
         reverse=True,
     )
 
-    # O primeiro chunk carrega o cabecalho (nome, status, tecnologias): sempre entra.
+    # O primeiro chunk carrega o cabecalho (identificacao): sempre entra.
     escolhidos = [chunks[0]]
     usado = len(chunks[0]["texto"])
     for _, chunk in pontuados:
@@ -172,6 +431,36 @@ async def recuperar_contexto_projeto(
 
     escolhidos.sort(key=lambda c: c["ordem"])
     return "\n\n".join(c["texto"] for c in escolhidos)
+
+
+async def recuperar_contexto_projeto(
+    project_id: int,
+    question: str,
+    max_chars: int | None = None,
+    top_k: int | None = None,
+) -> str:
+    return await _recuperar_contexto_documento(
+        doc_id=doc_id_projeto(project_id),
+        question=question,
+        max_chars=max_chars,
+        top_k=top_k,
+        normalizar=False,
+    )
+
+
+async def recuperar_contexto_desenvolvedor(
+    developer_id: int,
+    question: str,
+    max_chars: int | None = None,
+    top_k: int | None = None,
+) -> str:
+    return await _recuperar_contexto_documento(
+        doc_id=doc_id_desenvolvedor(developer_id),
+        question=question,
+        max_chars=max_chars,
+        top_k=top_k,
+        normalizar=True,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -482,4 +771,3 @@ async def recuperar_contexto_geral(
         return "\n\n".join(blocos), fontes_selecionadas
 
     return resumo_grafo, []
-

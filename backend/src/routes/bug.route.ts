@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { createBugController } from "../controllers/bug.controller";
+import { createBugController, updateBugController,} from "../controllers/bug.controller";
 
 const bugsRouter = Router();
 
 bugsRouter.post("/", createBugController);
+bugsRouter.put("/:id", updateBugController);
 
 export default bugsRouter;

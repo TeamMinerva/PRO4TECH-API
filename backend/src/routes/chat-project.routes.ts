@@ -1,5 +1,8 @@
 import { Router } from "express";
-import { chatProjetoController } from "../controllers/chat-project.controller";
+import {
+  chatDesenvolvedorController,
+  chatProjetoController,
+} from "../controllers/chat-project.controller";
 
 const router = Router();
 
@@ -7,5 +10,6 @@ const router = Router();
 // basta adicionar uma rota aqui, um serviço em chat.service.ts e o endpoint
 // correspondente no serviço de IA — o componente de chat do front é o mesmo.
 router.post("/projects/:id", chatProjetoController);
+router.post("/developers/:id", chatDesenvolvedorController);
 
 export default router;

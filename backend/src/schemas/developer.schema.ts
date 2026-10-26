@@ -17,3 +17,46 @@ export const createDeveloperSchema = z.object({
 export const developerIdParamSchema = z.object({
   id: z.coerce.number().int().positive("Id inválido."),
 });
+
+export type CreateDeveloperInput = z.infer<typeof createDeveloperSchema>;
+export type DeveloperIdParam = z.infer<typeof developerIdParamSchema>;
+
+export interface DeveloperTechnologyDTO {
+  id: number;
+  name: string;
+}
+
+export interface DeveloperProjectDTO {
+  id: number;
+  name: string;
+  status: string;
+}
+
+export interface DeveloperBugDTO {
+  id: number;
+  title: string;
+  description: string;
+  solution: string;
+  projectId: number;
+  projectName: string;
+  createdAt: Date;
+}
+
+export interface DeveloperPBIDTO {
+  id: number;
+  title: string;
+  projectName: string;
+  featureName: string;
+  epicName: string;
+}
+
+export interface DeveloperDetailsResponse {
+  id: number;
+  name: string;
+  active: boolean;
+  createdAt: Date;
+  technologies: DeveloperTechnologyDTO[];
+  projects: DeveloperProjectDTO[];
+  bugs: DeveloperBugDTO[];
+  pbis: DeveloperPBIDTO[];
+}

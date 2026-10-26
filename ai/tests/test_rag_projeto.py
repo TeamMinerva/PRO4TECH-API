@@ -31,7 +31,11 @@ def montar_rag(monkeypatch, chunks_por_doc, vetores):
     docs, chunks = {}, {}
     for doc_id, textos in chunks_por_doc.items():
         ids = [f"{doc_id}-c{i}" for i in range(len(textos))]
-        docs[doc_id] = {"chunks_list": ids}
+        docs[doc_id] = {
+            "status": "processed",
+            "chunks_count": len(ids),
+            "chunks_list": ids,
+        }
         for i, (cid, texto) in enumerate(zip(ids, textos)):
             chunks[cid] = {"content": texto, "chunk_order_index": i}
 

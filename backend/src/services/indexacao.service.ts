@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { AI_TIMEOUT_MS, postJson } from './ai-http.service';
 
 export class IndexacaoService {
   async gerarEIndexarConhecimentoTotal() {
@@ -31,29 +32,34 @@ export class IndexacaoService {
 
       return { success: true, message: "Indexação concluída." };
     } catch (error) {
-      console.error("Aviso: falha ao gerar indexação total", error);
+      console.error("event=knowledge_indexing_failed", error);
       return { success: false, error };
     }
   }
 
   async atualizarProjetoNoRAG(projetoId: number) {
     try {
-      const projeto = await prisma.project.findUnique({
-        where: { id: projetoId },
-        include: {
-          technologies: true,
-          bugs: { include: { developer: true } },
-          epics: { include: { features: { include: { pbis: { include: { developers: { include: { technologies: true } } } } } } } }
-        }
-      });
-
-      if (projeto) {
-        const textoAtualizado = this.formatarProjeto(projeto);
-        await this.enviarParaLightRAG(textoAtualizado, `projeto_${projeto.id}`);
-      }
+      await this.reindexarProjeto(projetoId);
     } catch (error) {
-      console.error("Aviso: falha ao atualizar projeto no LightRAG", error);
+      console.error("event=project_knowledge_indexing_failed project_id=%d", projetoId, error);
     }
+  }
+
+  async reindexarProjeto(projetoId: number) {
+    const projeto = await prisma.project.findUnique({
+      where: { id: projetoId },
+      include: {
+        technologies: true,
+        bugs: { include: { developer: true } },
+        epics: { include: { features: { include: { pbis: { include: { developers: { include: { technologies: true } } } } } } } }
+      }
+    });
+    if (!projeto) {
+      throw new Error(`Projeto ${projetoId} não encontrado.`);
+    }
+
+    const textoAtualizado = this.formatarProjeto(projeto);
+    await this.enviarParaLightRAG(textoAtualizado, `projeto_${projeto.id}`);
   }
 
   async atualizarDesenvolvedorNoRAG(devId: number) {
@@ -72,7 +78,7 @@ export class IndexacaoService {
         await this.enviarParaLightRAG(textoDev, `dev_${dev.id}`);
       }
     } catch (error) {
-      console.error("Aviso: falha ao atualizar desenvolvedor no LightRAG", error);
+      console.error("event=developer_knowledge_indexing_failed developer_id=%d", devId, error);
     }
   }
 
@@ -85,34 +91,63 @@ export class IndexacaoService {
     return mapa[status] || status;
   }
 
-  private formatarDesenvolvedor(dev: any): string {
+  public formatarDesenvolvedor(dev: any): string {
     const techsDev = (dev.technologies || []).map((t: any) => t.name).join(", ");
     const statusDev = dev.active ? "Ativo" : "Inativo";
-    let texto = `\n--- DESENVOLVEDOR: ${dev.name} ---\nO desenvolvedor '${dev.name}' está com status ${statusDev}. Competências técnicas: ${techsDev || 'Nenhuma registrada'}.\n`;
+
+    const projetosMap = new Map<number, { name: string; status: string }>();
+    for (const pbi of dev.pbis || []) {
+      const proj = pbi.feature?.epic?.project;
+      if (proj && !projetosMap.has(proj.id)) {
+        projetosMap.set(proj.id, {
+          name: proj.name,
+          status: this.formatarStatusProjeto(proj.status),
+        });
+      }
+    }
+    for (const bug of dev.bugs || []) {
+      const proj = bug.project;
+      if (proj && !projetosMap.has(proj.id)) {
+        projetosMap.set(proj.id, {
+          name: proj.name,
+          status: this.formatarStatusProjeto(proj.status),
+        });
+      }
+    }
+
+    const listaProjetos = Array.from(projetosMap.values())
+      .map((p) => `'${p.name}' (${p.status})`)
+      .join(", ");
+
+    let texto = `\n--- DESENVOLVEDOR: ${dev.name} ---\n`;
+    texto += `O desenvolvedor '${dev.name}' está com status ${statusDev}. `;
+    texto += `Competências técnicas: ${techsDev || "Nenhuma registrada"}. `;
+    texto += `Projetos em que participou: ${listaProjetos || "Nenhum projeto vinculado"}.\n`;
 
     for (const pbi of dev.pbis || []) {
-      const featureNome = pbi.feature?.name;
-      const epicoNome = pbi.feature?.epic?.name;
-      const projetoNome = pbi.feature?.epic?.project?.name;
+      const feature = pbi.feature;
+      const epico = feature?.epic;
+      const projeto = epico?.project;
+
       texto += `O desenvolvedor '${dev.name}' trabalha no PBI '${pbi.title}'`
-        + (featureNome ? ` (Feature '${featureNome}'` : '')
-        + (epicoNome ? `, Épico '${epicoNome}'` : '')
-        + (projetoNome ? `, Projeto '${projetoNome}'` : '')
-        + (featureNome ? `)` : '')
-        + `.\n`;
+        + (feature?.name ? ` (Feature '${feature.name}'` : "")
+        + (epico?.name ? `, Épico '${epico.name}'` : "")
+        + (projeto?.name ? `, Projeto '${projeto.name}'` : "")
+        + (feature?.name ? `)` : "")
+        + `. História de usuário: ${pbi.userStory}. Critérios de aceite: ${pbi.acceptanceCriteria}.\n`;
     }
 
     for (const bug of dev.bugs || []) {
       const projetoNome = bug.project?.name;
       texto += `O desenvolvedor '${dev.name}' resolveu o problema/bug '${bug.title}'`
-        + (projetoNome ? ` no projeto '${projetoNome}'` : '')
+        + (projetoNome ? ` no projeto '${projetoNome}'` : "")
         + `. Descrição do problema: ${bug.description}. Solução aplicada: ${bug.solution}.\n`;
     }
 
     return texto;
   }
 
-  private formatarProjeto(projeto: any): string {
+  public formatarProjeto(projeto: any): string {
     const techsProjeto = projeto.technologies.map((t: any) => t.name).join(", ");
     const statusFormatado = this.formatarStatusProjeto(projeto.status);
     let texto = `\n--- PROJETO: ${projeto.name} ---\n`;
@@ -142,19 +177,32 @@ export class IndexacaoService {
   }
 
   private async enviarParaLightRAG(conteudo: string, docId: string) {
+    const urlFastAPI = process.env.LIGHTRAG_URL || 'http://localhost:8000/knowledge';
     try {
-      const urlFastAPI = process.env.LIGHTRAG_URL || 'http://localhost:8000/knowledge';
-      
-      await fetch(urlFastAPI, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+      const resposta = await postJson(
+        urlFastAPI,
+        {
           text: conteudo,
           doc_id: docId
-        })
-      });
+        },
+        AI_TIMEOUT_MS,
+      );
+      if (resposta.status < 200 || resposta.status >= 300) {
+        console.error(
+          "event=lightrag_indexing_http_failed document_id=%s http_status=%d",
+          docId,
+          resposta.status,
+        );
+        throw new Error(`LightRAG respondeu com HTTP ${resposta.status}.`);
+      }
     } catch (error) {
-      console.error("Aviso: falha de rede ao comunicar com o LightRAG.", error);
+      console.error(
+        "event=lightrag_indexing_request_failed document_id=%s endpoint_host=%s",
+        docId,
+        new URL(urlFastAPI).host,
+        error,
+      );
+      throw error;
     }
   }
 }
