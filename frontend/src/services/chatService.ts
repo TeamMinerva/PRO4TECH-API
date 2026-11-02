@@ -58,15 +58,45 @@ async function postarChat(
   return dados.answer;
 }
 
-/** Chat que responde dúvidas sobre UM projeto específico. */
+/**
+ * Chat que responde dúvidas sobre UM projeto específico.
+ * Sem projetoId (projeto ainda não salvo), usa POST /api/chat/projects,
+ * que deve responder com o mesmo formato { answer } sem contexto de projeto.
+ */
 export function criarEnviarChatProjeto(projetoId: number | string): EnviarMensagemChat {
   return (pergunta, historico, signal) => {
+    if (String(projetoId).trim() === '') {
+      return postarChat('/api/chat/projects', pergunta, historico, signal);
+    }
     const id = Number(projetoId);
     if (!Number.isInteger(id) || id <= 0) {
       return Promise.reject(new Error('Projeto inválido para o chat.'));
     }
     return postarChat(`/api/chat/projects/${id}`, pergunta, historico, signal);
   };
+}
+
+export interface DadosPBISugestao {
+  rotulo: string;
+  titulo: string;
+  userStory: string;
+  criteriosAprovacao: string;
+  tecnologias: string[];
+}
+
+/** Monta a pergunta enviada ao chat para pedir sugestão de desenvolvedor para um PBI. */
+export function montarPerguntaSugestaoDesenvolvedor(pbi: DadosPBISugestao): string {
+  const titulo = pbi.titulo.trim();
+  const identificacao = `PBI ${pbi.rotulo}${titulo ? ` — ${titulo}` : ''}`;
+  const linhas = [`Sugira o(s) desenvolvedor(es) mais adequado(s) para o ${identificacao}.`, ''];
+  if (pbi.userStory.trim()) linhas.push(`User Story: ${pbi.userStory.trim()}`);
+  if (pbi.criteriosAprovacao.trim()) linhas.push(`Critérios de aprovação: ${pbi.criteriosAprovacao.trim()}`);
+  if (pbi.tecnologias.length > 0) linhas.push(`Tecnologias do projeto: ${pbi.tecnologias.join(', ')}`);
+  linhas.push(
+    '',
+    `Justifique cada sugestão com base na experiência dos desenvolvedores cadastrados.`,
+  );
+  return linhas.join('\n');
 }
 
 /** Chat que responde dúvidas sobre UM desenvolvedor específico. */

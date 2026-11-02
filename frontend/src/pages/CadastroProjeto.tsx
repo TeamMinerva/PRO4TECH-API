@@ -1,11 +1,11 @@
-import { ArrowLeft, ArrowUp, MessageSquare, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Loader2, MessageSquare, Sparkles, UserPlus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { criarEnviarChatProjeto } from '../services/chatService';
+import { criarEnviarChatProjeto, montarPerguntaSugestaoDesenvolvedor } from '../services/chatService';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BotaoAdicionar } from '../components/BotaoAdicionar';
 import { SeletorDesenvolvedores } from '../components/SeletorDesenvolvedores';
 import { CabecalhoItem } from '../components/CabecalhoItem';
-import { ChatLateral } from '../components/ChatLateral';
+import { ChatLateral, type ChatLateralHandle } from '../components/ChatLateral';
 import { CampoTexto } from '../components/CampoTexto';
 import { ErroCampo } from '../components/ErroCampo';
 import { OpcaoDropdown } from '../components/OpcaoDropdown';
@@ -52,6 +52,35 @@ export default function CadastroProjeto() {
   const { aberto: techAberto, setAberto: setTechAberto, ref: techRef } = useDropdown();
   const nomeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [itensColapsados, setItensColapsados] = useState<Set<string>>(new Set());
+  const chatRef = useRef<ChatLateralHandle>(null);
+  const [chatOcupado, setChatOcupado] = useState(false);
+  const [pbiSugerindoId, setPbiSugerindoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!chatOcupado) setPbiSugerindoId(null);
+  }, [chatOcupado]);
+
+  const sugerirDesenvolvedor = (pbi: {
+    id: string;
+    rotulo: string;
+    titulo: string;
+    userStory: string;
+    criteriosAprovacao: string;
+  }) => {
+    setChatAberto(true);
+    const enviado = chatRef.current?.enviarPergunta(
+      montarPerguntaSugestaoDesenvolvedor({
+        rotulo: pbi.rotulo,
+        titulo: pbi.titulo,
+        userStory: pbi.userStory,
+        criteriosAprovacao: pbi.criteriosAprovacao,
+        tecnologias: projeto.tecnologias.map(
+          (tid) => tecnologiasDisponiveis.find((t) => String(t.id) === tid)?.name ?? tid,
+        ),
+      }),
+    );
+    if (enviado) setPbiSugerindoId(pbi.id);
+  };
 
   const alternarColapso = (id: string) => {
     setItensColapsados((anterior) => {
@@ -336,6 +365,31 @@ export default function CadastroProjeto() {
                                                   }
                                                 />
                                                 <ErroCampo mensagem={erroDoCampo(`pbi.${pbi.id}.desenvolvedores`)} />
+
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    sugerirDesenvolvedor({
+                                                      id: pbi.id,
+                                                      rotulo: `${iE + 1}.${iF + 1}.${iP + 1}`,
+                                                      titulo: pbi.titulo,
+                                                      userStory: pbi.userStory,
+                                                      criteriosAprovacao: pbi.criteriosAprovacao,
+                                                    })
+                                                  }
+                                                  disabled={
+                                                    chatOcupado ||
+                                                    (!pbi.titulo.trim() && !pbi.userStory.trim())
+                                                  }
+                                                  className="mt-3 flex items-center gap-2 text-[15px] text-[#8a8f8f] hover:text-white transition-colors disabled:opacity-50 disabled:hover:text-[#8a8f8f] disabled:cursor-not-allowed"
+                                                >
+                                                  {pbiSugerindoId === pbi.id ? (
+                                                    <Loader2 size={16} strokeWidth={1.75} className="animate-spin" />
+                                                  ) : (
+                                                    <UserPlus size={16} strokeWidth={1.75} />
+                                                  )}
+                                                  Sugerir desenvolvedor
+                                                </button>
                                               </div>
                                             </>
                                           )}
@@ -423,7 +477,15 @@ export default function CadastroProjeto() {
         </button>
       )}
 
-      <ChatLateral key={id} aberto={chatAberto} onFechar={() => setChatAberto(false)} onEnviar={enviarChat} titulo="Chat do projeto" />
+      <ChatLateral
+        ref={chatRef}
+        key={id}
+        aberto={chatAberto}
+        onFechar={() => setChatAberto(false)}
+        onEnviar={enviarChat}
+        onEnviandoChange={setChatOcupado}
+        titulo="Chat do projeto"
+      />
     </div>
   );
 }
