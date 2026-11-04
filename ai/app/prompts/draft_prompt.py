@@ -22,7 +22,9 @@ REGRAS:
    usuário). O texto pode ter erros de digitação.
 
 2. A base de conhecimento contém apenas projetos e desenvolvedores já
-   cadastrados. O projeto em cadastro nunca está nela, e isso é esperado.
+   cadastrados. Caso encontre nela um projeto com o mesmo nome ou referente ao
+   mesmo cadastro, trata-se de uma versão anterior já salva: considere sempre
+   o RASCUNHO ATUAL como a versão mais recente e prioritária em edição.
    Use a base como referência (projetos parecidos, tecnologias,
    desenvolvedores), sem confundir os dados dela com os do rascunho.
 
