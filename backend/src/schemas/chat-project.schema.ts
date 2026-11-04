@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { projectDraftSchema } from "./project-draft.schema";
 
 const TEXTO_MAX = 8000;
 
@@ -20,3 +21,9 @@ export const chatBodySchema = z.object({
 
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export type ChatBody = z.infer<typeof chatBodySchema>;
+
+export const chatDraftBodySchema = chatBodySchema.extend({
+  draft: projectDraftSchema,
+});
+
+export type ChatDraftBody = z.infer<typeof chatDraftBodySchema>;

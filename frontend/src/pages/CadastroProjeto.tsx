@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowUp, MessageSquare, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { criarEnviarChatProjeto } from '../services/chatService';
+import { criarEnviarChatRascunho } from '../services/chatService';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BotaoAdicionar } from '../components/BotaoAdicionar';
 import { SeletorDesenvolvedores } from '../components/SeletorDesenvolvedores';
@@ -14,12 +14,12 @@ import { SetaDropdown } from '../components/SetaDropdown';
 import { TagRemovivel } from '../components/TagRemovivel';
 import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { useDropdown } from '../hooks/useDropdown';
+import { useRascunhoProjeto } from '../hooks/useRascunhoProjeto';
 import { STATUS_OPCOES, useProjeto } from '../hooks/useProjeto';
 import { useTecnologias } from '../hooks/useTecnologias';
 
 export default function CadastroProjeto() {
   const { id } = useParams();
-  const enviarChat = useMemo(() => criarEnviarChatProjeto(id ?? ''), [id]);
   const {
     projeto,
     editando,
@@ -50,6 +50,11 @@ export default function CadastroProjeto() {
   const gerenciadorTecnologias = useTecnologias();
   const tecnologiasDisponiveis = gerenciadorTecnologias.tecnologias;
   const { aberto: techAberto, setAberto: setTechAberto, ref: techRef } = useDropdown();
+  const getRascunho = useRascunhoProjeto(projeto, {
+    tecnologias: tecnologiasDisponiveis,
+    desenvolvedores: devsDisponiveis,
+  });
+  const enviarChat = useMemo(() => criarEnviarChatRascunho(getRascunho), [getRascunho]);
   const nomeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [itensColapsados, setItensColapsados] = useState<Set<string>>(new Set());
 
@@ -423,7 +428,21 @@ export default function CadastroProjeto() {
         </button>
       )}
 
-      <ChatLateral key={id} aberto={chatAberto} onFechar={() => setChatAberto(false)} onEnviar={enviarChat} titulo="Chat do projeto" />
+      <ChatLateral
+        key={id}
+        aberto={chatAberto}
+        onFechar={() => setChatAberto(false)}
+        onEnviar={enviarChat}
+        titulo="Chat do cadastro"
+        placeholder="Pergunte sobre este cadastro."
+        mensagemBoasVindas="Tire dúvidas enquanto preenche o projeto. Eu considero o que está no formulário agora."
+        sugestoes={[
+          'Como posso escrever bons critérios de aceitação?',
+          'Esta user story está clara? Como melhorar?',
+          'Existem projetos parecidos com este na base?',
+          'Quem já trabalhou em algo parecido com este projeto?',
+        ]}
+      />
     </div>
   );
 }

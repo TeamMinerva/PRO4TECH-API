@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma";
 import type { ChatMessage } from "../schemas/chat-project.schema";
+import type { ProjectDraft } from "../schemas/project-draft.schema";
 import { AI_URL, AI_TIMEOUT_MS, postJson } from "./ai-http.service";
 
 export class AIServiceError extends Error {
@@ -92,6 +93,19 @@ export async function perguntarSobreDesenvolvedor(
 
   const resposta = await postarParaIA<{ answer: string }>("/chat/developer", {
     developer_id: developerId,
+    question,
+    history,
+  });
+  return resposta.answer;
+}
+
+export async function perguntarSobreRascunho(
+  draft: ProjectDraft,
+  question: string,
+  history: ChatMessage[],
+): Promise<string> {
+  const resposta = await postarParaIA<{ answer: string }>("/chat/project-draft", {
+    draft,
     question,
     history,
   });

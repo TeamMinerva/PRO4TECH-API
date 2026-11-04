@@ -1,4 +1,5 @@
 import { getSession } from './authService';
+import type { RascunhoProjeto } from './rascunhoProjeto';
 
 export interface MensagemChat {
   role: 'user' | 'assistant';
@@ -23,6 +24,7 @@ async function postarChat(
   pergunta: string,
   historico: MensagemChat[],
   signal?: AbortSignal,
+  extra: object = {},
 ): Promise<string> {
   const { token } = getSession();
 
@@ -34,7 +36,7 @@ async function postarChat(
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ question: pergunta, history: historico }),
+      body: JSON.stringify({ question: pergunta, history: historico, ...extra }),
       signal,
     });
   } catch (err) {
@@ -78,4 +80,10 @@ export function criarEnviarChatDesenvolvedor(desenvolvedorId: number | string): 
     }
     return postarChat(`/api/chat/developers/${id}`, pergunta, historico, signal);
   };
+}
+
+/** Chat que responde dúvidas sobre o projeto em cadastro, ainda não salvo. */
+export function criarEnviarChatRascunho(getRascunho: () => RascunhoProjeto): EnviarMensagemChat {
+  return (pergunta, historico, signal) =>
+    postarChat('/api/chat/projects/draft', pergunta, historico, signal, { draft: getRascunho() });
 }
