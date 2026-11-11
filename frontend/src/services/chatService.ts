@@ -1,4 +1,5 @@
 import { getSession } from './authService';
+import type { RascunhoProjeto } from './rascunhoProjeto';
 
 export interface MensagemChat {
   role: 'user' | 'assistant';
@@ -18,10 +19,11 @@ export type EnviarMensagemChat = (
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-async function postarChat(
+export const PERGUNTA_ANALISAR_PROJETO = 'Analisar projeto';
+
+async function postarRequisicaoIA(
   path: string,
-  pergunta: string,
-  historico: MensagemChat[],
+  payload: object,
   signal?: AbortSignal,
 ): Promise<string> {
   const { token } = getSession();
@@ -34,7 +36,7 @@ async function postarChat(
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ question: pergunta, history: historico }),
+      body: JSON.stringify(payload),
       signal,
     });
   } catch (err) {
@@ -58,6 +60,33 @@ async function postarChat(
   return dados.answer;
 }
 
+async function postarChat(
+  path: string,
+  pergunta: string,
+  historico: MensagemChat[],
+  signal?: AbortSignal,
+  extra: object = {},
+): Promise<string> {
+  return postarRequisicaoIA(
+    path,
+    { question: pergunta, history: historico, ...extra },
+    signal,
+  );
+}
+
+/** Solicita a análise estruturada do rascunho atual do projeto à IA. */
+export function analisarRascunhoProjeto(
+  draft: RascunhoProjeto,
+  historico: MensagemChat[] = [],
+  signal?: AbortSignal,
+): Promise<string> {
+  return postarRequisicaoIA(
+    '/api/chat/projects/draft/analyze',
+    { draft, history: historico },
+    signal,
+  );
+}
+
 /** Chat que responde dúvidas sobre UM projeto específico. */
 export function criarEnviarChatProjeto(projetoId: number | string): EnviarMensagemChat {
   return (pergunta, historico, signal) => {
@@ -77,5 +106,20 @@ export function criarEnviarChatDesenvolvedor(desenvolvedorId: number | string): 
       return Promise.reject(new Error('Desenvolvedor inválido para o chat.'));
     }
     return postarChat(`/api/chat/developers/${id}`, pergunta, historico, signal);
+  };
+}
+
+/**
+ * Chat que responde dúvidas e realiza a análise do projeto em cadastro,
+ * sempre lendo os dados mais recentes do formulário via `getRascunho()`.
+ */
+export function criarEnviarChatRascunho(getRascunho: () => RascunhoProjeto): EnviarMensagemChat {
+  return (pergunta, historico, signal) => {
+    if (pergunta.trim() === PERGUNTA_ANALISAR_PROJETO) {
+      return analisarRascunhoProjeto(getRascunho(), historico, signal);
+    }
+    return postarChat('/api/chat/projects/draft', pergunta, historico, signal, {
+      draft: getRascunho(),
+    });
   };
 }

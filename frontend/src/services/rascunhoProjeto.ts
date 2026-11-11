@@ -47,9 +47,11 @@ const comValor = <T>(itens: (T | undefined)[]): T[] => itens.filter((item): item
 
 export function montarRascunho(projeto: Projeto, catalogos: CatalogosRascunho): RascunhoProjeto {
   const nomeTecnologia = new Map(catalogos.tecnologias.map((t) => [String(t.id), t.name]));
-  const nomeDev = new Map(catalogos.desenvolvedores.map((d) => [d.id, d.nome]));
+  const nomeDev = new Map(catalogos.desenvolvedores.map((d) => [String(d.id), d.nome]));
   const nomes = (ids: string[], catalogo: Map<string, string>) =>
-    ids.map((id) => catalogo.get(id)).filter((nome): nome is string => Boolean(nome));
+    ids
+      .map((id) => catalogo.get(String(id)) ?? (catalogo.size === 0 ? `ID: ${id}` : undefined))
+      .filter((nome): nome is string => Boolean(nome));
 
   return (
     semVazios({

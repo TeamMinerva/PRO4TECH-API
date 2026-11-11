@@ -1,5 +1,5 @@
 import { ArrowUp, Trash2, X } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from 'react';
 import { useChat } from '../hooks/useChat';
 import { MensagemMarkdown } from './MensagemMarkdown';
 import type { EnviarMensagemChat } from '../services/chatService';
@@ -14,6 +14,13 @@ interface ChatLateralProps {
   mensagemBoasVindas?: string;
   /** Perguntas prontas exibidas enquanto a conversa está vazia. */
   sugestoes?: string[];
+  /** Avisa o pai quando a IA começa/termina de responder. */
+  onEnviandoChange?: (enviando: boolean) => void;
+}
+
+export interface ChatLateralHandle {
+  /** Envia uma pergunta como se o usuário a tivesse digitado. Retorna false se o chat estiver ocupado. */
+  enviarPergunta: (pergunta: string) => boolean;
 }
 
 const TAMANHO_MAXIMO = 8000;
@@ -23,18 +30,38 @@ const TAMANHO_MAXIMO = 8000;
  * de `onEnviar`. Use `key` com o identificador do contexto para reiniciar a
  * conversa ao trocar de projeto/desenvolvedor/etc.
  */
-export function ChatLateral({
-  aberto,
-  onFechar,
-  onEnviar,
-  titulo = 'Chat',
-  placeholder = 'Digite uma mensagem.',
-  mensagemBoasVindas,
-  sugestoes = [],
-}: ChatLateralProps) {
+export const ChatLateral = forwardRef<ChatLateralHandle, ChatLateralProps>(function ChatLateral(
+  {
+    aberto,
+    onFechar,
+    onEnviar,
+    titulo = 'Chat',
+    placeholder = 'Digite uma mensagem.',
+    mensagemBoasVindas,
+    sugestoes = [],
+    onEnviandoChange,
+  },
+  ref,
+) {
   const { mensagens, enviando, erro, enviarMensagem, tentarNovamente, limpar } = useChat(onEnviar);
   const [texto, setTexto] = useState('');
   const fimDaLista = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    onEnviandoChange?.(enviando);
+  }, [enviando, onEnviandoChange]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      enviarPergunta: (pergunta: string) => {
+        if (!pergunta.trim() || enviando) return false;
+        enviarMensagem(pergunta);
+        return true;
+      },
+    }),
+    [enviando, enviarMensagem],
+  );
 
   useEffect(() => {
     fimDaLista.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -194,4 +221,4 @@ export function ChatLateral({
       </div>
     </aside>
   );
-}
+});
