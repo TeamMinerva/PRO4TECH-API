@@ -32,7 +32,7 @@ export function ChatLateral({
   mensagemBoasVindas,
   sugestoes = [],
 }: ChatLateralProps) {
-  const { mensagens, enviando, erro, enviarMensagem, tentarNovamente, limpar } = useChat(onEnviar);
+  const { mensagens, enviando, segundos, erro, enviarMensagem, tentarNovamente, limpar } = useChat(onEnviar);
   const [texto, setTexto] = useState('');
   const fimDaLista = useRef<HTMLDivElement>(null);
 
@@ -141,7 +141,7 @@ export function ChatLateral({
                   <span className="size-1.5 animate-pulse rounded-full bg-[#9a9fa0] [animation-delay:150ms]" />
                   <span className="size-1.5 animate-pulse rounded-full bg-[#9a9fa0] [animation-delay:300ms]" />
                 </span>
-                Pensando...
+                Pensando... {segundos}s
               </div>
             )}
 

@@ -30,6 +30,7 @@ export default function Home() {
     mensagens,
     fontes,
     enviando,
+    segundos,
     carregandoConversa,
     erro,
     enviarMensagem,
@@ -390,7 +391,7 @@ export default function Home() {
                     <span className="size-1.5 animate-pulse rounded-full bg-[#9a9fa0] [animation-delay:150ms]" />
                     <span className="size-1.5 animate-pulse rounded-full bg-[#9a9fa0] [animation-delay:300ms]" />
                   </span>
-                  Pensando...
+                  Pensando...{segundos}s
                 </div>
               )}
 
