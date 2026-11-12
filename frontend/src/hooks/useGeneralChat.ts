@@ -10,6 +10,7 @@ import {
   type FonteChat,
   type MensagemChatGeral,
 } from '../services/generalChatService';
+import { useTempoProcessamento } from './useTempoProcessamento';
 
 export interface MensagemGeralExibida extends MensagemChatGeral {
   id: number;
@@ -33,6 +34,8 @@ export function useGeneralChat() {
   const [enviando, setEnviando] = useState(false);
   const [carregandoConversa, setCarregandoConversa] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const { segundos, iniciar, parar } = useTempoProcessamento();
+
 
   const mensagensRef = useRef<MensagemGeralExibida[]>([]);
   const conversaAtivaIdRef = useRef<number | null>(null);
@@ -74,6 +77,7 @@ export function useGeneralChat() {
       if (conversaAtivaIdRef.current === id && !erro) return;
 
       controlador.current?.abort();
+      parar();
       const ctrl = new AbortController();
       controlador.current = ctrl;
 
@@ -108,11 +112,12 @@ export function useGeneralChat() {
         }
       }
     },
-    [atualizarMensagens, definirConversaAtiva, erro],
+    [atualizarMensagens, definirConversaAtiva, erro, parar],
   );
 
   const iniciarNovaConversa = useCallback(async () => {
     controlador.current?.abort();
+    parar();
     const ctrl = new AbortController();
     controlador.current = ctrl;
 
@@ -134,7 +139,7 @@ export function useGeneralChat() {
         err instanceof Error ? err.message : 'Erro ao iniciar nova conversa.',
       );
     }
-  }, [atualizarMensagens, definirConversaAtiva]);
+  }, [atualizarMensagens, definirConversaAtiva, parar]);
 
   const renomearConversa = useCallback(async (id: number, novoTitulo: string) => {
     const limpo = novoTitulo.trim();
@@ -154,6 +159,7 @@ export function useGeneralChat() {
 
       if (conversaAtivaIdRef.current === id) {
         controlador.current?.abort();
+        parar();
         definirConversaAtiva(null);
         atualizarMensagens([]);
         setEnviando(false);
@@ -161,7 +167,7 @@ export function useGeneralChat() {
         setErro(null);
       }
     },
-    [atualizarMensagens, definirConversaAtiva],
+    [atualizarMensagens, definirConversaAtiva, parar],
   );
 
   const perguntar = useCallback(
@@ -176,10 +182,12 @@ export function useGeneralChat() {
         .map(({ role, content }) => ({ role, content }));
 
       controlador.current?.abort();
+      parar();
       const ctrl = new AbortController();
       controlador.current = ctrl;
       setEnviando(true);
       setErro(null);
+      iniciar();
 
       try {
         let idConversa = conversaAtivaIdRef.current;
@@ -206,7 +214,7 @@ export function useGeneralChat() {
           idConversa,
         );
 
-        if (ctrl.signal.aborted || conversaAtivaIdRef.current !== idConversa) {
+        if (ctrl.signal.aborted || controlador.current !== ctrl  || conversaAtivaIdRef.current !== idConversa) {
           return;
         }
 
@@ -237,7 +245,7 @@ export function useGeneralChat() {
           return [atualizada, ...prev.filter((c) => c.id !== idConversa)];
         });
       } catch (err) {
-        if (ctrl.signal.aborted) return;
+        if (ctrl.signal.aborted || controlador.current !== ctrl ) return;
         atualizarMensagens(
           mensagensRef.current.map((m) =>
             m.id === idPergunta ? { ...m, falhou: true } : m,
@@ -247,16 +255,20 @@ export function useGeneralChat() {
           err instanceof Error ? err.message : 'Erro ao conversar com a IA.',
         );
       } finally {
-        if (controlador.current === ctrl) setEnviando(false);
+        if (controlador.current === ctrl) {
+          controlador.current= null;
+          parar();
+          setEnviando(false);
+        } 
       }
     },
-    [atualizarMensagens, definirConversaAtiva],
+    [atualizarMensagens, definirConversaAtiva, iniciar, parar],
   );
 
   const enviarMensagem = useCallback(
     (texto: string) => {
       const pergunta = texto.trim();
-      if (!pergunta || enviando || carregandoConversa) return;
+      if (!pergunta || controlador.current || carregandoConversa) return;
 
       const base = mensagensRef.current.filter((m) => !m.falhou);
       const idPergunta = proximoId.current++;
@@ -270,7 +282,7 @@ export function useGeneralChat() {
   );
 
   const tentarNovamente = useCallback(() => {
-    if (enviando || carregandoConversa) return;
+    if (controlador.current || carregandoConversa) return;
     const falhada = [...mensagensRef.current].reverse().find((m) => m.falhou);
     if (!falhada) return;
     void perguntar(falhada.content, mensagensRef.current, falhada.id);
@@ -294,6 +306,7 @@ export function useGeneralChat() {
     mensagens,
     fontes,
     enviando,
+    segundos,
     carregandoConversa,
     erro,
     enviarMensagem,

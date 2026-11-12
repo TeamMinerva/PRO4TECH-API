@@ -1,5 +1,7 @@
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EnviarMensagemChat, MensagemChat } from '../services/chatService';
+import { useTempoProcessamento } from './useTempoProcessamento';
 
 export interface MensagemExibida extends MensagemChat {
   id: number;
@@ -18,6 +20,8 @@ export function useChat(enviar: EnviarMensagemChat) {
   const [mensagens, setMensagens] = useState<MensagemExibida[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  const { segundos, iniciar, parar } = useTempoProcessamento();
 
   const mensagensRef = useRef<MensagemExibida[]>([]);
   const proximoId = useRef(1);
@@ -40,37 +44,64 @@ export function useChat(enviar: EnviarMensagemChat) {
 
       const ctrl = new AbortController();
       controlador.current = ctrl;
+
       setEnviando(true);
       setErro(null);
+      iniciar();
 
       try {
         const resposta = await enviar(pergunta, historico, ctrl.signal);
+
+        if (ctrl.signal.aborted || controlador.current !== ctrl) return;
+
         atualizar([
-          ...mensagensRef.current.map((m) => (m.id === idPergunta ? { ...m, falhou: false } : m)),
-          { id: proximoId.current++, role: 'assistant', content: resposta },
+          ...mensagensRef.current.map((m) =>
+            m.id === idPergunta ? { ...m, falhou: false } : m,
+          ),
+          {
+            id: proximoId.current++,
+            role: 'assistant',
+            content: resposta,
+          },
         ]);
       } catch (err) {
-        if (ctrl.signal.aborted) return;
-        atualizar(mensagensRef.current.map((m) => (m.id === idPergunta ? { ...m, falhou: true } : m)));
-        setErro(err instanceof Error ? err.message : 'Erro ao falar com a IA.');
+        if (ctrl.signal.aborted || controlador.current !== ctrl) return;
+
+        atualizar(
+          mensagensRef.current.map((m) =>
+            m.id === idPergunta ? { ...m, falhou: true } : m,
+          ),
+        );
+
+        setErro(
+          err instanceof Error ? err.message : 'Erro ao falar com a IA.',
+        );
       } finally {
         if (controlador.current === ctrl) {
           controlador.current = null;
+          parar();
           setEnviando(false);
         }
       }
     },
-    [enviar, atualizar],
+    [enviar, atualizar, iniciar, parar],
   );
 
   const enviarMensagem = useCallback(
     (texto: string) => {
       const pergunta = texto.trim();
+
       if (!pergunta || controlador.current) return;
 
-      const nova: MensagemExibida = { id: proximoId.current++, role: 'user', content: pergunta };
+      const nova: MensagemExibida = {
+        id: proximoId.current++,
+        role: 'user',
+        content: pergunta,
+      };
+
       const base = [...mensagensRef.current, nova];
       atualizar(base);
+
       void perguntar(pergunta, base, nova.id);
     },
     [atualizar, perguntar],
@@ -78,17 +109,33 @@ export function useChat(enviar: EnviarMensagemChat) {
 
   const tentarNovamente = useCallback(() => {
     if (controlador.current) return;
-    const falha = [...mensagensRef.current].reverse().find((m) => m.falhou);
-    if (falha) void perguntar(falha.content, mensagensRef.current, falha.id);
+
+    const falha = [...mensagensRef.current]
+      .reverse()
+      .find((m) => m.falhou);
+
+    if (falha) {
+      void perguntar(falha.content, mensagensRef.current, falha.id);
+    }
   }, [perguntar]);
 
   const limpar = useCallback(() => {
     controlador.current?.abort();
     controlador.current = null;
+
+    parar();
     setEnviando(false);
     setErro(null);
     atualizar([]);
-  }, [atualizar]);
+  }, [atualizar, parar]);
 
-  return { mensagens, enviando, erro, enviarMensagem, tentarNovamente, limpar };
+  return {
+    mensagens,
+    enviando,
+    segundos,
+    erro,
+    enviarMensagem,
+    tentarNovamente,
+    limpar,
+  };
 }
