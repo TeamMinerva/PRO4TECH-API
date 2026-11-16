@@ -108,6 +108,7 @@ export function useGeneralChat() {
         );
       } finally {
         if (controlador.current === ctrl) {
+          controlador.current = null;
           setCarregandoConversa(false);
         }
       }
@@ -138,6 +139,10 @@ export function useGeneralChat() {
       setErro(
         err instanceof Error ? err.message : 'Erro ao iniciar nova conversa.',
       );
+    } finally {
+      if (controlador.current === ctrl) {
+        controlador.current = null;
+      }
     }
   }, [atualizarMensagens, definirConversaAtiva, parar]);
 
@@ -159,6 +164,7 @@ export function useGeneralChat() {
 
       if (conversaAtivaIdRef.current === id) {
         controlador.current?.abort();
+        controlador.current = null;
         parar();
         definirConversaAtiva(null);
         atualizarMensagens([]);
@@ -278,7 +284,7 @@ export function useGeneralChat() {
       ]);
       void perguntar(pergunta, base, idPergunta);
     },
-    [atualizarMensagens, carregandoConversa, enviando, perguntar],
+    [atualizarMensagens, carregandoConversa, perguntar],
   );
 
   const tentarNovamente = useCallback(() => {
@@ -286,7 +292,7 @@ export function useGeneralChat() {
     const falhada = [...mensagensRef.current].reverse().find((m) => m.falhou);
     if (!falhada) return;
     void perguntar(falhada.content, mensagensRef.current, falhada.id);
-  }, [carregandoConversa, enviando, perguntar]);
+  }, [carregandoConversa, perguntar]);
 
   const fontes = useMemo(() => {
     const mapa = new Map<string, FonteChat>();
