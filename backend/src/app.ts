@@ -10,6 +10,7 @@ import bugsRouter from "./routes/bug.route";
 import chatRoutes from "./routes/chat-project.routes";
 import generalChatRoutes from "./routes/general-chat.routes";
 import conversationRoutes from "./routes/conversation.routes";
+import azureDevOpsRoutes from "./routes/azure-devops.routes";
 
 const app = express();
 
@@ -25,6 +26,8 @@ app.use('/api/bugs', bugsRouter);
 app.use("/api/chat", chatRoutes);
 app.use("/api/chat", generalChatRoutes);
 app.use("/api/conversations", conversationRoutes);
+app.use("/api/azure-devops", azureDevOpsRoutes);
+app.use("/api/azure-boards", azureDevOpsRoutes);
 
 app.use("/auth", authRoutes);
 app.use("/api/auth", authRoutes);
