@@ -14,7 +14,7 @@ async def test_chat_rascunho_sucesso(client, monkeypatch):
         capturado["question"] = question
         return "--- PROJETO: Beta ---\nUsa Vue.", [{"id": "projeto_2", "title": "Beta"}]
 
-    async def fake_chat(messages):
+    async def fake_chat(messages, **kwargs):
         capturado["messages"] = messages
         return "Falta definir as features do épico Login."
 
@@ -53,7 +53,7 @@ async def test_chat_rascunho_vazio_e_sem_contexto_avisa_o_modelo(client, monkeyp
     async def fake_contexto_geral(question, **kwargs):
         return "", []
 
-    async def fake_chat(messages):
+    async def fake_chat(messages, **kwargs):
         capturado["sistema"] = messages[0]["content"]
         return "ok"
 
@@ -90,10 +90,10 @@ async def test_chat_rascunho_timeout_e_indisponivel(client, monkeypatch):
     monkeypatch.setattr(rag, "recuperar_contexto_geral", fake_contexto_geral)
     corpo = {"draft": RASCUNHO, "question": "oi"}
 
-    async def timeout(messages):
+    async def timeout(messages, **kwargs):
         raise ollama_client.OllamaTimeout()
 
-    async def indisponivel(messages):
+    async def indisponivel(messages, **kwargs):
         raise ollama_client.OllamaUnavailable("fora")
 
     monkeypatch.setattr(ollama_client, "chat", timeout)
@@ -110,7 +110,7 @@ async def test_analisar_rascunho_sucesso(client, monkeypatch):
         capturado["question"] = question
         return "--- PROJETO: Beta ---\nAutenticação OAuth.", [{"id": "projeto_2", "title": "Beta"}]
 
-    async def fake_chat(messages):
+    async def fake_chat(messages, **kwargs):
         capturado["messages"] = messages
         return (
             "### Informações ausentes\n"
@@ -151,7 +151,7 @@ async def test_analisar_rascunho_incompleto_ou_vazio(client, monkeypatch):
     async def fake_contexto_geral(question, **kwargs):
         return "", []
 
-    async def fake_chat(messages):
+    async def fake_chat(messages, **kwargs):
         capturado["sistema"] = messages[0]["content"]
         return "O formulário está vazio. Comece informando o nome, status e tecnologias do projeto."
 
@@ -179,10 +179,10 @@ async def test_analisar_rascunho_valida_entrada_e_falhas(client, monkeypatch):
 
     monkeypatch.setattr(rag, "recuperar_contexto_geral", fake_contexto_geral)
 
-    async def timeout(messages):
+    async def timeout(messages, **kwargs):
         raise ollama_client.OllamaTimeout()
 
-    async def indisponivel(messages):
+    async def indisponivel(messages, **kwargs):
         raise ollama_client.OllamaUnavailable("fora")
 
     monkeypatch.setattr(ollama_client, "chat", timeout)

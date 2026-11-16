@@ -39,7 +39,9 @@ class DraftChatService:
             {"role": "user", "content": request.question},
         ]
 
-        answer = await ollama_client.chat(messages)
+        # Desabilita o modo think no chat de rascunho para reduzir latência e evitar
+        # que o raciocínio interno em inglês influencie o idioma da resposta.
+        answer = await ollama_client.chat(messages, think=False)
         if not answer:
             raise RuntimeError("O modelo não retornou uma resposta válida.")
         return answer
@@ -68,7 +70,9 @@ class DraftChatService:
             {"role": "user", "content": DRAFT_ANALYSIS_USER_PROMPT},
         ]
 
-        answer = await ollama_client.chat(messages)
+        # Desabilita o modo think no chat de rascunho para reduzir latência e evitar
+        # que o raciocínio interno em inglês influencie o idioma da resposta.
+        answer = await ollama_client.chat(messages, think=False)
         if not answer:
             raise RuntimeError("O modelo não retornou uma resposta válida.")
         return answer
