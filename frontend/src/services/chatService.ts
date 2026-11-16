@@ -21,11 +21,11 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export const PERGUNTA_ANALISAR_PROJETO = 'Analisar projeto';
 
-async function postarRequisicaoIA(
+async function postarJson<TResponse>(
   path: string,
   payload: object,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<TResponse> {
   const { token } = getSession();
 
   let response: Response;
@@ -55,7 +55,15 @@ async function postarRequisicaoIA(
     throw new Error(mensagem);
   }
 
-  const dados = (await response.json()) as { answer?: string };
+  return (await response.json()) as TResponse;
+}
+
+async function postarRequisicaoIA(
+  path: string,
+  payload: object,
+  signal?: AbortSignal,
+): Promise<string> {
+  const dados = await postarJson<{ answer?: string }>(path, payload, signal);
   if (!dados.answer) throw new Error('A IA retornou uma resposta vazia.');
   return dados.answer;
 }
@@ -106,6 +114,7 @@ export function criarEnviarChatProjeto(projetoId: number | string): EnviarMensag
 }
 
 export interface DadosPBISugestao {
+  pbiId?: number | null;
   rotulo: string;
   titulo: string;
   userStory: string;
@@ -113,19 +122,72 @@ export interface DadosPBISugestao {
   tecnologias: string[];
 }
 
-/** Monta a pergunta enviada ao chat para pedir sugestão de desenvolvedor para um PBI. */
+export interface DesenvolvedorRecomendado {
+  developerId: number;
+  name: string;
+  score: number;
+  justification: string;
+  evidence: string[];
+}
+
+export interface RespostaRecomendacaoDesenvolvedores {
+  pbiId: number | null;
+  developers: DesenvolvedorRecomendado[];
+  message: string;
+  automaticAssignment: boolean;
+}
+
+/** Monta a pergunta exibida no chat ao pedir sugestão de desenvolvedor para um PBI. */
 export function montarPerguntaSugestaoDesenvolvedor(pbi: DadosPBISugestao): string {
   const titulo = pbi.titulo.trim();
   const identificacao = `PBI ${pbi.rotulo}${titulo ? ` — ${titulo}` : ''}`;
-  const linhas = [`Sugira o(s) desenvolvedor(es) mais adequado(s) para o ${identificacao}.`, ''];
-  if (pbi.userStory.trim()) linhas.push(`User Story: ${pbi.userStory.trim()}`);
-  if (pbi.criteriosAprovacao.trim()) linhas.push(`Critérios de aprovação: ${pbi.criteriosAprovacao.trim()}`);
-  if (pbi.tecnologias.length > 0) linhas.push(`Tecnologias do projeto: ${pbi.tecnologias.join(', ')}`);
-  linhas.push(
-    '',
-    `Justifique cada sugestão com base na experiência dos desenvolvedores cadastrados.`,
+  return `Sugerir desenvolvedor para o ${identificacao}`;
+}
+
+/** Solicita recomendações estruturadas de desenvolvedores para um PBI ao backend. */
+export function recomendarDesenvolvedoresPbi(
+  pbi: DadosPBISugestao,
+  signal?: AbortSignal,
+): Promise<RespostaRecomendacaoDesenvolvedores> {
+  const titulo = pbi.titulo.trim() || pbi.userStory.trim().slice(0, 500);
+  return postarJson<RespostaRecomendacaoDesenvolvedores>(
+    '/api/developers/recommend',
+    {
+      pbiId: pbi.pbiId ?? null,
+      title: titulo,
+      userStory: pbi.userStory.trim(),
+      acceptanceCriteria: pbi.criteriosAprovacao.trim(),
+    },
+    signal,
   );
-  return linhas.join('\n');
+}
+
+/** Formata as recomendações recebidas da IA em Markdown identificando o PBI correspondente. */
+export function formatarRecomendacaoDesenvolvedoresMarkdown(
+  pbi: DadosPBISugestao,
+  resposta: RespostaRecomendacaoDesenvolvedores,
+): string {
+  const titulo = pbi.titulo.trim();
+  const cabecalho = `**Sugestões de desenvolvedores — PBI ${pbi.rotulo}${titulo ? ` (${titulo})` : ''}**`;
+
+  if (resposta.developers.length === 0) {
+    return `${cabecalho}\n\n${resposta.message}`;
+  }
+
+  const itens = resposta.developers.map((dev, index) => {
+    const compatibilidade = Math.round(dev.score * 100);
+    return `${index + 1}. **${dev.name}** *(afinidade estimada: ${compatibilidade}%)*\n   ${dev.justification}`;
+  });
+
+  return [cabecalho, '', ...itens, '', `*${resposta.message}*`].join('\n');
+}
+
+/** Cria o executor que solicita a recomendação especializada para o PBI e formata para o chat. */
+export function criarEnviarSugestaoDesenvolvedor(pbi: DadosPBISugestao): EnviarMensagemChat {
+  return async (_pergunta, _historico, signal) => {
+    const resposta = await recomendarDesenvolvedoresPbi(pbi, signal);
+    return formatarRecomendacaoDesenvolvedoresMarkdown(pbi, resposta);
+  };
 }
 
 /** Chat que responde dúvidas sobre UM desenvolvedor específico. */

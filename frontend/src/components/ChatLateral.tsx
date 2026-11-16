@@ -20,7 +20,7 @@ interface ChatLateralProps {
 
 export interface ChatLateralHandle {
   /** Envia uma pergunta como se o usuário a tivesse digitado. Retorna false se o chat estiver ocupado. */
-  enviarPergunta: (pergunta: string) => boolean;
+  enviarPergunta: (pergunta: string, enviarCustomizado?: EnviarMensagemChat) => boolean;
 }
 
 const TAMANHO_MAXIMO = 8000;
@@ -54,9 +54,9 @@ export const ChatLateral = forwardRef<ChatLateralHandle, ChatLateralProps>(funct
   useImperativeHandle(
     ref,
     () => ({
-      enviarPergunta: (pergunta: string) => {
+      enviarPergunta: (pergunta: string, enviarCustomizado?: EnviarMensagemChat) => {
         if (!pergunta.trim() || enviando) return false;
-        enviarMensagem(pergunta);
+        enviarMensagem(pergunta, enviarCustomizado);
         return true;
       },
     }),

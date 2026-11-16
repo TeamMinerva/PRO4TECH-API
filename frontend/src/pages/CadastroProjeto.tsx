@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowUp, Loader2, MessageSquare, Sparkles, UserPlus } from '
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   criarEnviarChatRascunho,
+  criarEnviarSugestaoDesenvolvedor,
   montarPerguntaSugestaoDesenvolvedor,
   PERGUNTA_ANALISAR_PROJETO,
 } from '../services/chatService';
@@ -90,16 +91,19 @@ export default function CadastroProjeto() {
     criteriosAprovacao: string;
   }) => {
     setChatAberto(true);
+    const dadosPbi = {
+      pbiId: /^\d+$/.test(pbi.id) ? Number(pbi.id) : null,
+      rotulo: pbi.rotulo,
+      titulo: pbi.titulo,
+      userStory: pbi.userStory,
+      criteriosAprovacao: pbi.criteriosAprovacao,
+      tecnologias: projeto.tecnologias.map(
+        (tid) => tecnologiasDisponiveis.find((t) => String(t.id) === tid)?.name ?? tid,
+      ),
+    };
     const enviado = chatRef.current?.enviarPergunta(
-      montarPerguntaSugestaoDesenvolvedor({
-        rotulo: pbi.rotulo,
-        titulo: pbi.titulo,
-        userStory: pbi.userStory,
-        criteriosAprovacao: pbi.criteriosAprovacao,
-        tecnologias: projeto.tecnologias.map(
-          (tid) => tecnologiasDisponiveis.find((t) => String(t.id) === tid)?.name ?? tid,
-        ),
-      }),
+      montarPerguntaSugestaoDesenvolvedor(dadosPbi),
+      criarEnviarSugestaoDesenvolvedor(dadosPbi),
     );
     if (enviado) setPbiSugerindoId(pbi.id);
   };

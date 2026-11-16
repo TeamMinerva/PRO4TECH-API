@@ -22,6 +22,7 @@ export function useChat(enviar: EnviarMensagemChat) {
   const mensagensRef = useRef<MensagemExibida[]>([]);
   const proximoId = useRef(1);
   const controlador = useRef<AbortController | null>(null);
+  const enviosCustomizadosRef = useRef<Map<number, EnviarMensagemChat>>(new Map());
 
   const atualizar = useCallback((proximas: MensagemExibida[]) => {
     mensagensRef.current = proximas;
@@ -44,7 +45,9 @@ export function useChat(enviar: EnviarMensagemChat) {
       setErro(null);
 
       try {
-        const resposta = await enviar(pergunta, historico, ctrl.signal);
+        const executor = enviosCustomizadosRef.current.get(idPergunta) ?? enviar;
+        const resposta = await executor(pergunta, historico, ctrl.signal);
+        enviosCustomizadosRef.current.delete(idPergunta);
         atualizar([
           ...mensagensRef.current.map((m) => (m.id === idPergunta ? { ...m, falhou: false } : m)),
           { id: proximoId.current++, role: 'assistant', content: resposta },
@@ -64,11 +67,15 @@ export function useChat(enviar: EnviarMensagemChat) {
   );
 
   const enviarMensagem = useCallback(
-    (texto: string) => {
+    (texto: string, enviarCustomizado?: EnviarMensagemChat) => {
       const pergunta = texto.trim();
       if (!pergunta || controlador.current) return;
 
-      const nova: MensagemExibida = { id: proximoId.current++, role: 'user', content: pergunta };
+      const id = proximoId.current++;
+      if (enviarCustomizado) {
+        enviosCustomizadosRef.current.set(id, enviarCustomizado);
+      }
+      const nova: MensagemExibida = { id, role: 'user', content: pergunta };
       const base = [...mensagensRef.current, nova];
       atualizar(base);
       void perguntar(pergunta, base, nova.id);
@@ -85,6 +92,7 @@ export function useChat(enviar: EnviarMensagemChat) {
   const limpar = useCallback(() => {
     controlador.current?.abort();
     controlador.current = null;
+    enviosCustomizadosRef.current.clear();
     setEnviando(false);
     setErro(null);
     atualizar([]);
