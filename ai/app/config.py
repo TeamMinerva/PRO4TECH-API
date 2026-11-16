@@ -27,8 +27,8 @@ class Settings(BaseSettings):
 
     # Chat contextualizado (ex.: chat de projeto). Os limites protegem a janela de
     # contexto do Ollama (OLLAMA_CONTEXT_LENGTH): o que passar dela e silenciosamente cortado.
-    chat_context_max_chars: int = 6000
-    chat_context_top_k: int = 6
+    chat_context_max_chars: int = 9500
+    chat_context_top_k: int = 8
     chat_history_max_messages: int = 10
     chat_history_max_chars: int = 3000
 

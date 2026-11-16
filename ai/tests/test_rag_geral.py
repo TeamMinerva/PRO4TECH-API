@@ -81,3 +81,45 @@ async def test_base_grande_ranqueia_e_preserva_cabecalho_do_documento(monkeypatc
     assert "Marina Souza" in ctx
     assert "Sistema Beta" not in ctx
     assert [f["id"] for f in fontes] == ["projeto_1", "dev_5"]
+
+
+async def test_base_grande_inclui_catalogo_resumido_de_todos_os_projetos(monkeypatch):
+    montar_rag(
+        monkeypatch,
+        {
+            "projeto_1": [
+                "--- PROJETO: Portal ESG ---\nO projeto 'Portal ESG' está no status PLANNED. Tecnologias usadas: Python, React.\n"
+                + ("x" * 3500),
+            ],
+            "projeto_2": [
+                "--- PROJETO: Portal Crédito ---\nO projeto 'Portal Crédito' está no status DONE. Tecnologias usadas: Java, Python.\n"
+                + ("y" * 3500),
+            ],
+            "projeto_3": [
+                "--- PROJETO: Sistema Logística ---\nO projeto 'Sistema Logística' está no status IN_PROGRESS. Tecnologias usadas: Go, Docker.\n"
+                + ("z" * 3500),
+            ],
+        },
+        {
+            "projeto_1-c0": [1, 0, 0],
+            "projeto_2-c0": [0.5, 0.5, 0],
+            "projeto_3-c0": [0, 0, 1],
+        },
+    )
+
+    async def fake_embedding(texts):
+        return np.array([[1, 0, 0]])
+
+    monkeypatch.setattr(rag, "embedding_func", fake_embedding)
+
+    ctx, fontes = await rag.recuperar_contexto_geral(
+        "Liste todos os projetos que utilizam python",
+        max_chars=5000,
+        top_k=6,
+    )
+
+    assert "CATÁLOGO RESUMIDO DE PROJETOS" in ctx
+    assert "Portal ESG" in ctx
+    assert "Portal Crédito" in ctx
+    assert "Sistema Logística" in ctx
+    assert [f["id"] for f in fontes] == ["projeto_1", "projeto_2", "projeto_3"]

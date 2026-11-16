@@ -10,6 +10,8 @@ from app.services.project_draft_formatter import formatar_rascunho
 
 
 CONSULTA_RASCUNHO_MAX_CHARS = 800
+CONTEXTO_RASCUNHO_MAX_CHARS = 3000
+CONTEXTO_RASCUNHO_TOP_K = 3
 
 
 class DraftChatService:
@@ -21,7 +23,11 @@ class DraftChatService:
         consulta = "\n\n".join(
             parte for parte in (request.question, rascunho_resumido) if parte
         )
-        resultado = await rag.recuperar_contexto_geral(question=consulta)
+        resultado = await rag.recuperar_contexto_geral(
+            question=consulta,
+            max_chars=CONTEXTO_RASCUNHO_MAX_CHARS,
+            top_k=CONTEXTO_RASCUNHO_TOP_K,
+        )
         context = resultado[0] if isinstance(resultado, tuple) else resultado
 
         messages = [
@@ -44,7 +50,11 @@ class DraftChatService:
             request.draft, max_chars=CONSULTA_RASCUNHO_MAX_CHARS
         )
         consulta = rascunho_resumido or DRAFT_ANALYSIS_USER_PROMPT
-        resultado = await rag.recuperar_contexto_geral(question=consulta)
+        resultado = await rag.recuperar_contexto_geral(
+            question=consulta,
+            max_chars=CONTEXTO_RASCUNHO_MAX_CHARS,
+            top_k=CONTEXTO_RASCUNHO_TOP_K,
+        )
         context = resultado[0] if isinstance(resultado, tuple) else resultado
 
         messages = [
