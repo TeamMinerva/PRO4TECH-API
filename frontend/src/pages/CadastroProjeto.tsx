@@ -1,7 +1,8 @@
-import { ArrowLeft, ArrowUp, Loader2, MessageSquare, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Loader2, MessageSquare, Sparkles, UserPlus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   criarEnviarChatRascunho,
+  montarPerguntaSugestaoDesenvolvedor,
   PERGUNTA_ANALISAR_PROJETO,
 } from '../services/chatService';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -73,6 +74,34 @@ export default function CadastroProjeto() {
     setChatAberto(true);
     const enviado = chatRef.current?.enviarPergunta(PERGUNTA_ANALISAR_PROJETO);
     if (enviado) setAnalisandoProjeto(true);
+  };
+
+  const [pbiSugerindoId, setPbiSugerindoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!chatOcupado) setPbiSugerindoId(null);
+  }, [chatOcupado]);
+
+  const sugerirDesenvolvedor = (pbi: {
+    id: string;
+    rotulo: string;
+    titulo: string;
+    userStory: string;
+    criteriosAprovacao: string;
+  }) => {
+    setChatAberto(true);
+    const enviado = chatRef.current?.enviarPergunta(
+      montarPerguntaSugestaoDesenvolvedor({
+        rotulo: pbi.rotulo,
+        titulo: pbi.titulo,
+        userStory: pbi.userStory,
+        criteriosAprovacao: pbi.criteriosAprovacao,
+        tecnologias: projeto.tecnologias.map(
+          (tid) => tecnologiasDisponiveis.find((t) => String(t.id) === tid)?.name ?? tid,
+        ),
+      }),
+    );
+    if (enviado) setPbiSugerindoId(pbi.id);
   };
 
   const alternarColapso = (id: string) => {
@@ -358,6 +387,31 @@ export default function CadastroProjeto() {
                                                   }
                                                 />
                                                 <ErroCampo mensagem={erroDoCampo(`pbi.${pbi.id}.desenvolvedores`)} />
+
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    sugerirDesenvolvedor({
+                                                      id: pbi.id,
+                                                      rotulo: `${iE + 1}.${iF + 1}.${iP + 1}`,
+                                                      titulo: pbi.titulo,
+                                                      userStory: pbi.userStory,
+                                                      criteriosAprovacao: pbi.criteriosAprovacao,
+                                                    })
+                                                  }
+                                                  disabled={
+                                                    chatOcupado ||
+                                                    (!pbi.titulo.trim() && !pbi.userStory.trim())
+                                                  }
+                                                  className="mt-3 flex items-center gap-2 text-[15px] text-[#8a8f8f] hover:text-white transition-colors disabled:opacity-50 disabled:hover:text-[#8a8f8f] disabled:cursor-not-allowed"
+                                                >
+                                                  {pbiSugerindoId === pbi.id ? (
+                                                    <Loader2 size={16} strokeWidth={1.75} className="animate-spin" />
+                                                  ) : (
+                                                    <UserPlus size={16} strokeWidth={1.75} />
+                                                  )}
+                                                  Sugerir desenvolvedor
+                                                </button>
                                               </div>
                                             </>
                                           )}
