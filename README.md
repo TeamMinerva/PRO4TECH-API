@@ -168,12 +168,12 @@ A proposta não é substituir a atuação do PO ou permitir que a IA tome decis�
 - 📄 Documentação: [Clique aqui](docs/sprints/sprint1.md)
 
 ### 🎯 Sprint 2
-- ✅ Status: Planejada
+- ✅ Status: Concluída
 - 📅 Período: 13/04 - 03/05
 - 📄 Documentação: [Clique aqui](docs/sprints/sprint2.md)
 
 ### 🎯 Sprint 3
-- ✅ Status: Planejada
+- ✅ Status: Concluída
 - 📅 Período: 11/05 - 31/05
 - 📄 Documentação: [Clique aqui](docs/sprints/sprint3.md)
 

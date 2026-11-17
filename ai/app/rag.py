@@ -554,6 +554,38 @@ async def _obter_todos_status_docs(rag: LightRAG) -> dict[str, Any]:
     return {}
 
 
+async def listar_chunks_desenvolvedores() -> dict[int, list[dict[str, Any]]]:
+    rag = get_rag()
+    docs = await _obter_todos_status_docs(rag)
+    resultado: dict[int, list[dict[str, Any]]] = {}
+    for doc_id, status in docs.items():
+        if not doc_id.startswith("dev_"):
+            continue
+        try:
+            developer_id = int(doc_id.removeprefix("dev_"))
+        except ValueError:
+            continue
+        chunk_ids = _extrair_chunks_list(status)
+        if not chunk_ids:
+            continue
+        registros = await rag.text_chunks.get_by_ids(chunk_ids)
+        vetores = await recuperar_vetores_chunks(doc_id, chunk_ids)
+        chunks = [
+            {
+                "id": cid,
+                "ordem": reg.get("chunk_order_index", 0),
+                "texto": reg["content"].strip(),
+                "vetor": vetores.get(cid),
+            }
+            for cid, reg in zip(chunk_ids, registros)
+            if reg and reg.get("content", "").strip()
+        ]
+        chunks.sort(key=lambda c: c["ordem"])
+        if chunks:
+            resultado[developer_id] = chunks
+    return resultado
+
+
 async def _consultar_grafo_lightrag(
     rag: LightRAG,
     question: str,
@@ -668,8 +700,14 @@ async def recuperar_contexto_geral(
         primeiro_texto = chunks_doc[0]["texto"]
         fontes_por_doc[doc_id] = extrair_fonte_documento(doc_id, primeiro_texto)
         primeira_linha = primeiro_texto.splitlines()[0].strip() if primeiro_texto else ""
+        linhas_iniciais = [l.strip() for l in primeiro_texto.splitlines() if l.strip()]
         if primeira_linha.startswith("---"):
-            cabecalho_por_doc[doc_id] = primeira_linha
+            if len(linhas_iniciais) > 1 and linhas_iniciais[1].startswith(
+                ("O projeto ", "O desenvolvedor ")
+            ):
+                cabecalho_por_doc[doc_id] = f"{linhas_iniciais[0]}\n{linhas_iniciais[1]}"
+            else:
+                cabecalho_por_doc[doc_id] = primeira_linha
         todos_chunks.extend(chunks_doc)
 
     # Base pequena: envia todos os documentos na integra, sem precisar chamar o
@@ -718,6 +756,21 @@ async def recuperar_contexto_geral(
         pontuados.sort(key=lambda par: par[0], reverse=True)
 
         usado = 0
+        catalogo_linhas: list[str] = []
+        fontes_catalogo: dict[str, dict[str, Any]] = {}
+        if max_chars >= 4000 and cabecalho_por_doc:
+            orcamento_catalogo = int(max_chars * 0.3)
+            for doc_id, cab in cabecalho_por_doc.items():
+                if not doc_id.startswith("projeto_"):
+                    continue
+                custo_cab = len(cab) + 1
+                if usado + custo_cab > orcamento_catalogo:
+                    break
+                catalogo_linhas.append(cab)
+                usado += custo_cab
+                if doc_id in fontes_por_doc:
+                    fontes_catalogo[doc_id] = fontes_por_doc[doc_id]
+
         docs_vistos: list[str] = []
         melhor_score_doc: dict[str, float] = {}
 
@@ -749,6 +802,10 @@ async def recuperar_contexto_geral(
         )
         blocos: list[str] = []
         fontes_selecionadas: list[dict[str, Any]] = []
+        if catalogo_linhas:
+            blocos.append(
+                "--- CATÁLOGO RESUMIDO DE PROJETOS ---\n" + "\n".join(catalogo_linhas)
+            )
 
         for doc_id in docs_ordenados:
             chunks_do_doc = sorted(
@@ -764,6 +821,12 @@ async def recuperar_contexto_geral(
             blocos.extend(textos_doc)
             if doc_id in fontes_por_doc:
                 fontes_selecionadas.append(fontes_por_doc[doc_id])
+
+        ids_fontes = {f["id"] for f in fontes_selecionadas}
+        for doc_id, fonte in fontes_catalogo.items():
+            if doc_id not in ids_fontes:
+                fontes_selecionadas.append(fonte)
+                ids_fontes.add(doc_id)
 
         if resumo_grafo and usado + len(resumo_grafo) + 2 <= max_chars:
             blocos.append(resumo_grafo)

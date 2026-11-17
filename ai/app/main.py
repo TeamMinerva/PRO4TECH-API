@@ -8,7 +8,9 @@ from pydantic import BaseModel, Field
 from app import ollama_client, rag
 from app.config import settings
 from app.routers.developer_chat import router as developer_chat_router
+from app.routers.draft_chat import router as draft_chat_router
 from app.routers.general_chat import router as general_chat_router
+from app.routers.developer_recommendation import router as developer_recommendation_router
 from app.routers.project_chat import router as project_chat_router
 from app.routers.similar_projects import router as similar_projects_router
 
@@ -42,7 +44,9 @@ app = FastAPI(
 
 app.include_router(developer_chat_router)
 app.include_router(project_chat_router)
+app.include_router(draft_chat_router)
 app.include_router(similar_projects_router)
+app.include_router(developer_recommendation_router)
 app.include_router(general_chat_router)
 
 class AskRequest(BaseModel):
