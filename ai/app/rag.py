@@ -554,6 +554,38 @@ async def _obter_todos_status_docs(rag: LightRAG) -> dict[str, Any]:
     return {}
 
 
+async def listar_chunks_desenvolvedores() -> dict[int, list[dict[str, Any]]]:
+    rag = get_rag()
+    docs = await _obter_todos_status_docs(rag)
+    resultado: dict[int, list[dict[str, Any]]] = {}
+    for doc_id, status in docs.items():
+        if not doc_id.startswith("dev_"):
+            continue
+        try:
+            developer_id = int(doc_id.removeprefix("dev_"))
+        except ValueError:
+            continue
+        chunk_ids = _extrair_chunks_list(status)
+        if not chunk_ids:
+            continue
+        registros = await rag.text_chunks.get_by_ids(chunk_ids)
+        vetores = await recuperar_vetores_chunks(doc_id, chunk_ids)
+        chunks = [
+            {
+                "id": cid,
+                "ordem": reg.get("chunk_order_index", 0),
+                "texto": reg["content"].strip(),
+                "vetor": vetores.get(cid),
+            }
+            for cid, reg in zip(chunk_ids, registros)
+            if reg and reg.get("content", "").strip()
+        ]
+        chunks.sort(key=lambda c: c["ordem"])
+        if chunks:
+            resultado[developer_id] = chunks
+    return resultado
+
+
 async def _consultar_grafo_lightrag(
     rag: LightRAG,
     question: str,

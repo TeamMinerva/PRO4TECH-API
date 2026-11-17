@@ -32,5 +32,7 @@ class Settings(BaseSettings):
     chat_history_max_messages: int = 10
     chat_history_max_chars: int = 3000
 
+    recommend_min_similarity: float = 0.4
+
 
 settings = Settings()
