@@ -1,10 +1,11 @@
-import { ArrowLeft, Bug, ListTodo, MessageSquare, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, Bug, ListTodo, MessageSquare, Pencil, Plus, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BacklogEditavel } from '../components/BacklogEditavel';
 import { BotaoAba } from '../components/BotaoAba';
 import { ChatLateral } from '../components/ChatLateral';
 import { ModalCadastroBug } from '../components/ModalCadastroBug';
+import { ModalExportarAzure } from '../components/ModalExportarAzure';
 import { Expansivel } from '../components/Expansivel';
 import { TagRemovivel } from '../components/TagRemovivel';
 import { useBacklogEditavel } from '../hooks/useBacklogEditavel';
@@ -35,6 +36,7 @@ export default function DetalhesProjeto() {
   const [equipeAberta, setEquipeAberta] = useState(false);
   const [aba, setAba] = useState<Aba>('bugs');
   const [modalBugAberto, setModalBugAberto] = useState(false);
+  const [modalAzureAberto, setModalAzureAberto] = useState(false);
   const devsDisponiveis = useDesenvolvedores();
   const backlog = useBacklogEditavel();
   const { carregar: carregarBacklog } = backlog;
@@ -266,6 +268,17 @@ export default function DetalhesProjeto() {
                     </BotaoAba>
                   </nav>
 
+                  {aba === 'backlog' && (
+                    <button
+                      type="button"
+                      onClick={() => setModalAzureAberto(true)}
+                      className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] transition-colors"
+                    >
+                      <Upload size={15} strokeWidth={2.25} />
+                      Exportar para Azure Boards
+                    </button>
+                  )}
+
                   {aba === 'bugs' && (
                     <button
                       type="button"
@@ -335,6 +348,14 @@ export default function DetalhesProjeto() {
           'Quais são os épicos e as features?',
         ]}
       />
+
+      {modalAzureAberto && projeto && (
+        <ModalExportarAzure
+          projetoNome={projeto.name}
+          epicos={backlog.epicos}
+          onFechar={() => setModalAzureAberto(false)}
+        />
+      )}
 
       {modalBugAberto && projeto && (
         <ModalCadastroBug
