@@ -4,6 +4,13 @@ import type { RascunhoProjeto } from './rascunhoProjeto';
 export interface MensagemChat {
   role: 'user' | 'assistant';
   content: string;
+  createdAt?: string;
+}
+
+export interface RespostaChat {
+  answer: string;
+  createdAt?: string;
+  userCreatedAt?: string;
 }
 
 /**
@@ -15,7 +22,7 @@ export type EnviarMensagemChat = (
   pergunta: string,
   historico: MensagemChat[],
   signal?: AbortSignal,
-) => Promise<string>;
+) => Promise<string | RespostaChat>;
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -62,10 +69,18 @@ async function postarRequisicaoIA(
   path: string,
   payload: object,
   signal?: AbortSignal,
-): Promise<string> {
-  const dados = await postarJson<{ answer?: string }>(path, payload, signal);
+): Promise<RespostaChat> {
+  const dados = await postarJson<{
+    answer?: string;
+    createdAt?: string;
+    userCreatedAt?: string;
+  }>(path, payload, signal);
   if (!dados.answer) throw new Error('A IA retornou uma resposta vazia.');
-  return dados.answer;
+  return {
+    answer: dados.answer,
+    createdAt: dados.createdAt,
+    userCreatedAt: dados.userCreatedAt,
+  };
 }
 
 async function postarChat(
@@ -74,7 +89,7 @@ async function postarChat(
   historico: MensagemChat[],
   signal?: AbortSignal,
   extra: object = {},
-): Promise<string> {
+): Promise<RespostaChat> {
   return postarRequisicaoIA(
     path,
     { question: pergunta, history: historico, ...extra },
@@ -87,7 +102,7 @@ export function analisarRascunhoProjeto(
   draft: RascunhoProjeto,
   historico: MensagemChat[] = [],
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<RespostaChat> {
   return postarRequisicaoIA(
     '/api/chat/projects/draft/analyze',
     { draft, history: historico },

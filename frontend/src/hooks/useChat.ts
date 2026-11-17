@@ -7,6 +7,7 @@ export interface MensagemExibida extends MensagemChat {
   id: number;
   /** Pergunta que não obteve resposta (não entra no histórico enviado). */
   falhou?: boolean;
+  createdAt?: string;
 }
 
 // O backend aceita no máximo 20 mensagens de histórico.
@@ -56,15 +57,33 @@ export function useChat(enviar: EnviarMensagemChat) {
 
         if (ctrl.signal.aborted || controlador.current !== ctrl) return;
 
+        const conteudoResposta =
+          typeof resposta === 'string' ? resposta : resposta.answer;
+        const horarioResposta =
+          (typeof resposta === 'object' && resposta !== null
+            ? resposta.createdAt
+            : undefined) ?? new Date().toISOString();
+        const horarioPergunta =
+          typeof resposta === 'object' && resposta !== null
+            ? resposta.userCreatedAt
+            : undefined;
+
         enviosCustomizadosRef.current.delete(idPergunta);
         atualizar([
           ...mensagensRef.current.map((m) =>
-            m.id === idPergunta ? { ...m, falhou: false } : m,
+            m.id === idPergunta
+              ? {
+                  ...m,
+                  falhou: false,
+                  createdAt: m.createdAt ?? horarioPergunta,
+                }
+              : m,
           ),
           {
             id: proximoId.current++,
             role: 'assistant',
-            content: resposta,
+            content: conteudoResposta,
+            createdAt: horarioResposta,
           },
         ]);
       } catch (err) {
@@ -100,7 +119,12 @@ export function useChat(enviar: EnviarMensagemChat) {
       if (enviarCustomizado) {
         enviosCustomizadosRef.current.set(id, enviarCustomizado);
       }
-      const nova: MensagemExibida = { id, role: 'user', content: pergunta };
+      const nova: MensagemExibida = {
+        id,
+        role: 'user',
+        content: pergunta,
+        createdAt: new Date().toISOString(),
+      };
       const base = [...mensagensRef.current, nova];
       atualizar(base);
 

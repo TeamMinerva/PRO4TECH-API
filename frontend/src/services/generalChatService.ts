@@ -3,6 +3,7 @@ import { getSession } from './authService';
 export interface MensagemChatGeral {
   role: 'user' | 'assistant';
   content: string;
+  createdAt?: string;
 }
 
 export interface FonteChat {
@@ -17,6 +18,8 @@ export interface RespostaChatGeral {
   sources: FonteChat[];
   conversationId?: number;
   conversationTitle?: string;
+  userCreatedAt?: string;
+  createdAt?: string;
 }
 
 export interface ConversaResumo {
@@ -218,6 +221,8 @@ export async function enviarChatGeral(
     sources?: FonteChat[];
     conversationId?: number;
     conversationTitle?: string;
+    userCreatedAt?: string;
+    createdAt?: string;
   };
   if (!dados.answer) throw new Error('A IA retornou uma resposta vazia.');
   return {
@@ -225,5 +230,7 @@ export async function enviarChatGeral(
     sources: Array.isArray(dados.sources) ? dados.sources : [],
     conversationId: dados.conversationId,
     conversationTitle: dados.conversationTitle,
+    userCreatedAt: dados.userCreatedAt,
+    createdAt: dados.createdAt,
   };
 }

@@ -31,8 +31,13 @@ export async function chatProjetoController(req: Request, res: Response) {
   }
 
   try {
+    const userCreatedAt = new Date().toISOString();
     const answer = await perguntarSobreProjeto(params.data.id, body.data.question, body.data.history);
-    return res.status(200).json({ answer });
+    return res.status(200).json({
+      answer,
+      userCreatedAt,
+      createdAt: new Date().toISOString(),
+    });
   } catch (error) {
     if (error instanceof ChatServiceError) {
       return res.status(error.status).json({ message: error.message });
@@ -59,12 +64,17 @@ export async function chatDesenvolvedorController(req: Request, res: Response) {
   }
 
   try {
+    const userCreatedAt = new Date().toISOString();
     const answer = await perguntarSobreDesenvolvedor(
       params.data.id,
       body.data.question,
       body.data.history,
     );
-    return res.status(200).json({ answer });
+    return res.status(200).json({
+      answer,
+      userCreatedAt,
+      createdAt: new Date().toISOString(),
+    });
   } catch (error) {
     if (error instanceof ChatServiceError) {
       return res.status(error.status).json({ message: error.message });
@@ -84,12 +94,17 @@ export async function chatRascunhoController(req: Request, res: Response) {
   }
 
   try {
+    const userCreatedAt = new Date().toISOString();
     const answer = await perguntarSobreRascunho(
       body.data.draft,
       body.data.question,
       body.data.history,
     );
-    return res.status(200).json({ answer });
+    return res.status(200).json({
+      answer,
+      userCreatedAt,
+      createdAt: new Date().toISOString(),
+    });
   } catch (error) {
     if (error instanceof ChatServiceError) {
       return res.status(error.status).json({ message: error.message });
@@ -109,11 +124,16 @@ export async function analisarRascunhoController(req: Request, res: Response) {
   }
 
   try {
+    const userCreatedAt = new Date().toISOString();
     const answer = await analisarRascunhoProjeto(
       body.data.draft,
       body.data.history,
     );
-    return res.status(200).json({ answer });
+    return res.status(200).json({
+      answer,
+      userCreatedAt,
+      createdAt: new Date().toISOString(),
+    });
   } catch (error) {
     if (error instanceof ChatServiceError) {
       return res.status(error.status).json({ message: error.message });

@@ -2,6 +2,7 @@ import { ArrowUp, Trash2, X } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from 'react';
 import { useChat } from '../hooks/useChat';
 import { MensagemMarkdown } from './MensagemMarkdown';
+import { formatarHorario } from '../utils/formatarHorario';
 import type { EnviarMensagemChat } from '../services/chatService';
 
 interface ChatLateralProps {
@@ -141,22 +142,35 @@ export const ChatLateral = forwardRef<ChatLateralHandle, ChatLateralProps>(funct
               </div>
             )}
 
-            {mensagens.map((mensagem) => (
-              <div
-                key={mensagem.id}
-                className={`max-w-[85%] break-words rounded-[14px] px-4 py-3 text-[14px] leading-relaxed text-white ${
-                  mensagem.role === 'user'
-                    ? 'self-end whitespace-pre-wrap bg-[#3f3f3f]'
-                    : 'min-w-0 self-start bg-[#2d2d2d]'
-                }`}
-              >
-                {mensagem.role === 'assistant' ? (
-                  <MensagemMarkdown conteudo={mensagem.content} />
-                ) : (
-                  mensagem.content
-                )}
-              </div>
-            ))}
+            {mensagens.map((mensagem) => {
+              const horario = formatarHorario(mensagem.createdAt);
+
+              return (
+                <div
+                  key={mensagem.id}
+                  className={`max-w-[85%] break-words rounded-[14px] px-4 py-3 text-[14px] leading-relaxed text-white ${
+                    mensagem.role === 'user'
+                      ? 'self-end whitespace-pre-wrap bg-[#3f3f3f]'
+                      : 'min-w-0 self-start bg-[#2d2d2d]'
+                  }`}
+                >
+                  {mensagem.role === 'assistant' ? (
+                    <MensagemMarkdown conteudo={mensagem.content} />
+                  ) : (
+                    mensagem.content
+                  )}
+                  {horario && (
+                    <span
+                      className={`mt-1 block text-[10px] text-[#8a8f8f] ${
+                        mensagem.role === 'user' ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      {horario}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
 
             {enviando && (
               <div

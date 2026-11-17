@@ -8,6 +8,7 @@ import {
 import { ArrowUp, PanelRightClose, RotateCcw } from "lucide-react";
 import { useChat } from "../hooks/useChat";
 import { criarEnviarChatDesenvolvedor } from "../services/chatService";
+import { formatarHorario } from "../utils/formatarHorario";
 import { MensagemMarkdown } from "./MensagemMarkdown";
 
 interface Props {
@@ -132,19 +133,32 @@ export function ChatDesenvolvedor({
           </div>
         )}
 
-        {mensagens.map((message) => (
-          <div
-            key={message.id}
-            className={`dev-message dev-message--${message.role}`}
-            aria-label={message.role === "user" ? "Você" : "Assistente"}
-          >
-            {message.role === "assistant" ? (
-              <MensagemMarkdown conteudo={message.content} />
-            ) : (
-              message.content
-            )}
-          </div>
-        ))}
+        {mensagens.map((message) => {
+          const horario = formatarHorario(message.createdAt);
+
+          return (
+            <div
+              key={message.id}
+              className={`dev-message dev-message--${message.role}`}
+              aria-label={message.role === "user" ? "Você" : "Assistente"}
+            >
+              {message.role === "assistant" ? (
+                <MensagemMarkdown conteudo={message.content} />
+              ) : (
+                message.content
+              )}
+              {horario && (
+                <span
+                  className={`mt-1 block text-[10px] text-[#8a8f8f] ${
+                    message.role === "user" ? "text-right" : "text-left"
+                  }`}
+                >
+                  {horario}
+                </span>
+              )}
+            </div>
+          );
+        })}
 
         {enviando && (
           <div className="dev-message dev-message--assistant" role="status" aria-label="Processando resposta da inteligência artificial">

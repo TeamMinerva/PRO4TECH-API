@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { Prisma } from "@prisma/client";
 import { createProject, getProjectById, updateProject } from "../services/project.service";
+import { isPrismaError } from "../utils/prisma-error";
 import {
   createProjectSchema,
   getProjectParamsSchema,
@@ -51,7 +51,7 @@ export async function getProjectByIdController(
 
     return res.status(200).json(project);
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaError(error)) {
       console.error(
         "Erro do Prisma ao buscar detalhes do projeto:",
         error.code,
@@ -110,7 +110,7 @@ export async function updateProjectController(
   } catch (error) {
     console.error("Erro ao atualizar projeto:", error);
 
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaError(error)) {
       return res.status(400).json({
         message: "Não foi possível salvar: verifique se os desenvolvedores informados existem.",
       });
