@@ -38,6 +38,7 @@ export function ChatDesenvolvedor({
   const {
     mensagens,
     enviando,
+    segundos,
     erro,
     enviarMensagem,
     tentarNovamente,
@@ -146,8 +147,8 @@ export function ChatDesenvolvedor({
         ))}
 
         {enviando && (
-          <div className="dev-message dev-message--assistant" role="status">
-            Pensando...
+          <div className="dev-message dev-message--assistant" role="status" aria-label="Processando resposta da inteligência artificial">
+            Pensando... {segundos}s
           </div>
         )}
 
