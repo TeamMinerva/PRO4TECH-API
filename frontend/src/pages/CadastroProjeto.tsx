@@ -65,10 +65,14 @@ export default function CadastroProjeto() {
   const chatRef = useRef<ChatLateralHandle>(null);
   const [chatOcupado, setChatOcupado] = useState(false);
   const [analisandoProjeto, setAnalisandoProjeto] = useState(false);
+  const [pbiSugerindoId, setPbiSugerindoId] = useState<string | null>(null);
 
   const aoMudarEnviando = (ocupado: boolean) => {
     setChatOcupado(ocupado);
-    if (!ocupado) setAnalisandoProjeto(false);
+    if (!ocupado) {
+      setAnalisandoProjeto(false);
+      setPbiSugerindoId(null);
+    }
   };
 
   const analisarProjeto = () => {
@@ -76,12 +80,6 @@ export default function CadastroProjeto() {
     const enviado = chatRef.current?.enviarPergunta(PERGUNTA_ANALISAR_PROJETO);
     if (enviado) setAnalisandoProjeto(true);
   };
-
-  const [pbiSugerindoId, setPbiSugerindoId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!chatOcupado) setPbiSugerindoId(null);
-  }, [chatOcupado]);
 
   const sugerirDesenvolvedor = (pbi: {
     id: string;
