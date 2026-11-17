@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { History, Link2, X, ArrowUp, Pencil, Trash2, Check } from "lucide-react";
 import { useGeneralChat } from "../hooks/useGeneralChat";
 import { MensagemMarkdown } from "../components/MensagemMarkdown";
+import { formatarHorario } from "../utils/formatarHorario";
 import type { FonteChat } from "../services/generalChatService";
 
 type Aba = "conversa" | "desenvolvedores" | "projetos";
@@ -332,54 +333,67 @@ export default function Home() {
                 </div>
               )}
 
-              {mensagens.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`max-w-[85%] break-words rounded-[14px] px-4 py-3 text-[14px] leading-relaxed text-white ${
-                    msg.role === "user"
-                      ? "self-end whitespace-pre-wrap bg-[#3f3f3f]"
-                      : "min-w-0 self-start bg-[#2d2d2d]"
-                  }`}
-                >
-                  {msg.role === "assistant" ? (
-                    <>
-                      <MensagemMarkdown conteudo={msg.content} />
-                      {msg.fontes && msg.fontes.length > 0 && (
-                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#3f3f3f] pt-2.5 text-[12px]">
-                          <span className="text-[#8a8f8f]">
-                            Contexto utilizado:
-                          </span>
-                          {msg.fontes.map((fonte) => {
-                            const clicavel =
-                              (fonte.type === "project" && !!fonte.entity_id) ||
-                              fonte.type === "developer";
-                            return (
-                              <button
-                                key={fonte.id}
-                                type="button"
-                                disabled={!clicavel}
-                                onClick={() => abrirFonte(fonte)}
-                                className={`rounded-[8px] border border-[#3f3f3f] bg-[#191b1c] px-2.5 py-1 text-[#d6d6d6] transition-colors ${
-                                  clicavel
-                                    ? "hover:border-[#ED6A32] hover:text-[#ED6A32]"
-                                    : "cursor-default"
-                                }`}
-                              >
-                                <span className="text-[#8a8f8f]">
-                                  {rotuloTipoFonte(fonte.type)}:
-                                </span>{" "}
-                                {fonte.title}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    msg.content
-                  )}
-                </div>
-              ))}
+              {mensagens.map((msg) => {
+                const horario = formatarHorario(msg.createdAt);
+
+                return (
+                  <div
+                    key={msg.id}
+                    className={`max-w-[85%] break-words rounded-[14px] px-4 py-3 text-[14px] leading-relaxed text-white ${
+                      msg.role === "user"
+                        ? "self-end whitespace-pre-wrap bg-[#3f3f3f]"
+                        : "min-w-0 self-start bg-[#2d2d2d]"
+                    }`}
+                  >
+                    {msg.role === "assistant" ? (
+                      <>
+                        <MensagemMarkdown conteudo={msg.content} />
+                        {msg.fontes && msg.fontes.length > 0 && (
+                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#3f3f3f] pt-2.5 text-[12px]">
+                            <span className="text-[#8a8f8f]">
+                              Contexto utilizado:
+                            </span>
+                            {msg.fontes.map((fonte) => {
+                              const clicavel =
+                                (fonte.type === "project" && !!fonte.entity_id) ||
+                                fonte.type === "developer";
+                              return (
+                                <button
+                                  key={fonte.id}
+                                  type="button"
+                                  disabled={!clicavel}
+                                  onClick={() => abrirFonte(fonte)}
+                                  className={`rounded-[8px] border border-[#3f3f3f] bg-[#191b1c] px-2.5 py-1 text-[#d6d6d6] transition-colors ${
+                                    clicavel
+                                      ? "hover:border-[#ED6A32] hover:text-[#ED6A32]"
+                                      : "cursor-default"
+                                  }`}
+                                >
+                                  <span className="text-[#8a8f8f]">
+                                    {rotuloTipoFonte(fonte.type)}:
+                                  </span>{" "}
+                                  {fonte.title}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      msg.content
+                    )}
+                    {horario && (
+                      <span
+                        className={`mt-1 block text-[10px] text-[#8a8f8f] ${
+                          msg.role === "user" ? "text-right" : "text-left"
+                        }`}
+                      >
+                        {horario}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
 
               {enviando && (
                 <div
