@@ -351,6 +351,7 @@ export default function DetalhesProjeto() {
 
       {modalAzureAberto && projeto && (
         <ModalExportarAzure
+          projetoId={projeto.id}
           projetoNome={projeto.name}
           epicos={backlog.epicos}
           onFechar={() => setModalAzureAberto(false)}
