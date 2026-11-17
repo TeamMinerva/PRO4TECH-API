@@ -51,11 +51,18 @@ export async function chatGeralController(req: Request, res: Response) {
         ...resultado,
         conversationId: conversaAtualizada.id,
         conversationTitle: conversaAtualizada.title,
+        userCreatedAt: conversaAtualizada.userCreatedAt,
+        createdAt: conversaAtualizada.createdAt,
       });
     }
 
+    const userCreatedAt = new Date().toISOString();
     const resultado = await perguntarChatGeral(question, history, ctrl.signal);
-    return res.status(200).json(resultado);
+    return res.status(200).json({
+      ...resultado,
+      userCreatedAt,
+      createdAt: new Date().toISOString(),
+    });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       return;

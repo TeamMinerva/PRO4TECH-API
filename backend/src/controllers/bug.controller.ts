@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { createBugSchema } from "../schemas/bug.schema";
 import { createBug, updateBug } from "../services/bug.service";
+import { isPrismaError } from "../utils/prisma-error";
 
 const bugParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -20,7 +20,7 @@ function respondError(error: unknown, res: Response) {
     return res.status(404).json({ message: error.message });
   }
 
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+  if (isPrismaError(error)) {
     if (error.code === "P2025") {
       return res.status(404).json({ message: "Bug não encontrado." });
     }

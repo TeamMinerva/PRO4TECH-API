@@ -113,23 +113,39 @@ export async function getDeveloper(
     a.name.localeCompare(b.name)
   );
 
-  const bugs = developer.bugs.map((bug) => ({
-    id: bug.id,
-    title: bug.title,
-    description: bug.description,
-    solution: bug.solution,
-    projectId: bug.projectId,
-    projectName: bug.project.name,
-    createdAt: bug.createdAt,
-  }));
+  const bugs = developer.bugs.map(
+    (bug: {
+      id: number;
+      title: string;
+      description: string;
+      solution: string;
+      projectId: number;
+      createdAt: Date;
+      project: { name: string };
+    }) => ({
+      id: bug.id,
+      title: bug.title,
+      description: bug.description,
+      solution: bug.solution,
+      projectId: bug.projectId,
+      projectName: bug.project.name,
+      createdAt: bug.createdAt,
+    }),
+  );
 
-  const pbis = developer.pbis.map((pbi) => ({
-    id: pbi.id,
-    title: pbi.title,
-    projectName: pbi.feature.epic.project.name,
-    featureName: pbi.feature.name,
-    epicName: pbi.feature.epic.name,
-  }));
+  const pbis = developer.pbis.map(
+    (pbi: {
+      id: number;
+      title: string;
+      feature: { name: string; epic: { name: string; project: { name: string } } };
+    }) => ({
+      id: pbi.id,
+      title: pbi.title,
+      projectName: pbi.feature.epic.project.name,
+      featureName: pbi.feature.name,
+      epicName: pbi.feature.epic.name,
+    }),
+  );
 
   return {
     id: developer.id,

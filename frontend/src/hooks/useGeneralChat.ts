@@ -16,6 +16,7 @@ export interface MensagemGeralExibida extends MensagemChatGeral {
   id: number;
   falhou?: boolean;
   fontes?: FonteChat[];
+  createdAt?: string;
 }
 
 export type MensagemChat = MensagemGeralExibida;
@@ -97,6 +98,7 @@ export function useGeneralChat() {
             role: m.role === 'assistant' ? 'assistant' : 'user',
             content: m.content,
             fontes: Array.isArray(m.sources) ? m.sources : [],
+            createdAt: m.createdAt,
           })),
         );
       } catch (err) {
@@ -226,13 +228,20 @@ export function useGeneralChat() {
 
         atualizarMensagens([
           ...mensagensRef.current.map((m) =>
-            m.id === idPergunta ? { ...m, falhou: false } : m,
+            m.id === idPergunta
+              ? {
+                  ...m,
+                  falhou: false,
+                  createdAt: m.createdAt ?? resultado.userCreatedAt,
+                }
+              : m,
           ),
           {
             id: proximoId.current++,
             role: 'assistant',
             content: resultado.answer,
             fontes: resultado.sources,
+            createdAt: resultado.createdAt ?? new Date().toISOString(),
           },
         ]);
 
@@ -280,7 +289,12 @@ export function useGeneralChat() {
       const idPergunta = proximoId.current++;
       atualizarMensagens([
         ...base,
-        { id: idPergunta, role: 'user', content: pergunta },
+        {
+          id: idPergunta,
+          role: 'user',
+          content: pergunta,
+          createdAt: new Date().toISOString(),
+        },
       ]);
       void perguntar(pergunta, base, idPergunta);
     },

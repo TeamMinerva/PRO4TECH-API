@@ -27,7 +27,7 @@ export async function recommendDevelopersForPbi(
     where: { active: false },
     select: { id: true },
   });
-  const inactiveDeveloperIds = inactiveDevelopers.map(({ id }) => id);
+  const inactiveDeveloperIds = inactiveDevelopers.map(({ id }: { id: number }) => id);
   const inactiveSet = new Set(inactiveDeveloperIds);
 
   const response = await postarParaIA<unknown>("/developers/recommend", {

@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { Prisma } from "@prisma/client";
 
 import { createDeveloperSchema, developerIdParamSchema } from "../schemas/developer.schema";
 import { createDeveloper, getDeveloper } from "../services/developer.service";
+import { isPrismaError } from "../utils/prisma-error";
 
 export async function createDeveloperController(
   req: Request,
@@ -22,7 +22,7 @@ export async function createDeveloperController(
 
     return res.status(201).json(developer);
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaError(error)) {
       if (error.code === "P2025") {
         return res.status(400).json({
           message: "Uma ou mais tecnologias informadas não existem.",
