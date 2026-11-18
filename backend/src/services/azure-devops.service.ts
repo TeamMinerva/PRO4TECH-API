@@ -605,3 +605,37 @@ export async function createWorkItem(
     fields,
   };
 }
+
+export async function linkWorkItemHierarchy(
+  childId: number,
+  parentId: number,
+  comment = "Vínculo hierárquico criado via API Pro4Tech",
+): Promise<void> {
+  const config = resolveConfig();
+  const patchDocument: JsonPatchOperation[] = [
+    {
+      op: "add",
+      path: "/relations/-",
+      value: {
+        rel: "System.LinkTypes.Hierarchy-Reverse",
+        url: `${config.projectApiBaseUrl}/_apis/wit/workItems/${parentId}`,
+        attributes: {
+          comment,
+        },
+      },
+    },
+  ];
+
+  const url = `${config.projectApiBaseUrl}/_apis/wit/workitems/${childId}?api-version=${AZURE_DEVOPS_API_VERSION}`;
+
+  await executeAzureRequest(url, {
+    method: "PATCH",
+    headers: {
+      Authorization: config.basicAuthHeader,
+      "Content-Type": "application/json-patch+json",
+    },
+    body: JSON.stringify(patchDocument),
+    timeoutMs: config.timeoutMs,
+  });
+}
+

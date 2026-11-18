@@ -5,6 +5,8 @@ import {
   updateProjectController,
 } from "../controllers/project.controller";
 import { similarProjectsController } from "../controllers/similar-projects.controller";
+import { exportProjectBacklogController } from "../controllers/azure-devops.controller";
+import { azureDevOpsAuthGuard } from "./azure-devops.routes";
 
 const router = Router();
 
@@ -19,4 +21,8 @@ router.get("/:id", getProjectByIdController);
 router.post("/", createProjectController);
 router.put("/:id", updateProjectController);
 
+router.post("/:id/export/azure-devops", azureDevOpsAuthGuard, exportProjectBacklogController);
+router.post("/:id/export/azure-boards", azureDevOpsAuthGuard, exportProjectBacklogController);
+
 export default router;
+

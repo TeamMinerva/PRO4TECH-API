@@ -5,8 +5,25 @@ import {
   createWorkItem,
   getWorkItemTypes,
 } from "../services/azure-devops.service";
+import {
+  exportProjectBacklogToAzure,
+  ExportConflictError,
+  ProjectNotFoundError,
+} from "../services/azure-export.service";
 
 function handleAzureControllerError(error: unknown, res: Response, fallbackMessage: string) {
+  if (error instanceof ProjectNotFoundError) {
+    return res.status(404).json({
+      message: error.message,
+    });
+  }
+
+  if (error instanceof ExportConflictError) {
+    return res.status(409).json({
+      message: error.message,
+    });
+  }
+
   if (error instanceof AzureDevOpsServiceError) {
     return res.status(error.status).json({
       message: error.message,
@@ -19,6 +36,7 @@ function handleAzureControllerError(error: unknown, res: Response, fallbackMessa
     message: fallbackMessage,
   });
 }
+
 
 export async function listWorkItemTypesController(req: Request, res: Response) {
   const forceRefresh = req.query.refresh === "true";
@@ -64,3 +82,26 @@ export async function createWorkItemController(req: Request, res: Response) {
     );
   }
 }
+
+export async function exportProjectBacklogController(req: Request, res: Response) {
+  const paramValue = req.params.id ?? req.params.projectId;
+  const projectId = Number(paramValue);
+
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({
+      message: "O identificador do projeto informado deve ser um número inteiro positivo.",
+    });
+  }
+
+  try {
+    const result = await exportProjectBacklogToAzure(projectId);
+    return res.status(200).json(result);
+  } catch (error) {
+    return handleAzureControllerError(
+      error,
+      res,
+      `Erro interno ao exportar o backlog do projeto ${projectId} para o Azure Boards.`,
+    );
+  }
+}
+

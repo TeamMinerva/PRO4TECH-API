@@ -1,14 +1,21 @@
 import { useState } from 'react';
-import { AlertCircle, CheckCircle2, ExternalLink, Loader2, X } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  X,
+} from 'lucide-react';
 import type { EpicoDetalhe } from '../services/projectService';
 import {
   contarBacklog,
-  exportarBacklog,
-  type ProgressoExportacao,
-  type ResultadoExportacao,
+  exportarBacklogProjeto,
+  type ResultadoExportacaoBacklog,
 } from '../services/azureBoardsService';
 
 interface ModalExportarAzureProps {
+  projetoId: number;
   projetoNome: string;
   epicos: EpicoDetalhe[];
   onFechar: () => void;
@@ -18,39 +25,42 @@ type Etapa = 'confirmar' | 'exportando' | 'concluido';
 
 const fonte = { fontFamily: 'Poppins, sans-serif' };
 
-export function ModalExportarAzure({ projetoNome, epicos, onFechar }: ModalExportarAzureProps) {
+export function ModalExportarAzure({
+  projetoId,
+  projetoNome,
+  epicos,
+  onFechar,
+}: ModalExportarAzureProps) {
   const [etapa, setEtapa] = useState<Etapa>('confirmar');
-  const [progresso, setProgresso] = useState<ProgressoExportacao | null>(null);
-  const [resultado, setResultado] = useState<ResultadoExportacao | null>(null);
+  const [resultado, setResultado] = useState<ResultadoExportacaoBacklog | null>(null);
+  const [erroFatal, setErroFatal] = useState<string | null>(null);
   const contagem = contarBacklog(epicos);
   const exportando = etapa === 'exportando';
 
   async function iniciar() {
     setEtapa('exportando');
-    setProgresso({ concluidos: 0, total: contagem.total, atual: 'Iniciando...' });
+    setErroFatal(null);
 
     try {
-      setResultado(await exportarBacklog(epicos, setProgresso));
+      const res = await exportarBacklogProjeto(projetoId);
+      setResultado(res);
+      setEtapa('concluido');
     } catch (error: unknown) {
       console.error('Erro ao exportar backlog para o Azure Boards:', error);
-      setResultado({
-        exportados: [],
-        erros: [],
-        ignorados: contagem.total,
-        interrompidaPor: 'Ocorreu um erro inesperado durante a exportação.',
-      });
-    } finally {
+      const mensagem =
+        error instanceof Error
+          ? error.message
+          : 'Ocorreu um erro inesperado durante a exportação.';
+      setErroFatal(mensagem);
       setEtapa('concluido');
     }
   }
 
   const fechar = () => {
-    if (!exportando) onFechar();
+    if (!exportando) {
+      onFechar();
+    }
   };
-
-  const percentual = progresso && progresso.total > 0
-    ? Math.round((progresso.concluidos / progresso.total) * 100)
-    : 0;
 
   return (
     <div
@@ -62,7 +72,7 @@ export function ModalExportarAzure({ projetoNome, epicos, onFechar }: ModalExpor
         role="dialog"
         aria-modal="true"
         aria-label="Exportar backlog para o Azure Boards"
-        className="relative max-h-full w-full max-w-[460px] overflow-y-auto rounded-[14px] bg-[#141617] p-[24px]"
+        className="relative max-h-full w-full max-w-[500px] overflow-y-auto rounded-[14px] bg-[#141617] p-[24px]"
       >
         <div className="mb-[20px] flex items-center justify-between">
           <h2 className="text-[16px] font-medium text-white" style={fonte}>
@@ -84,7 +94,7 @@ export function ModalExportarAzure({ projetoNome, epicos, onFechar }: ModalExpor
           <div className="flex flex-col gap-[16px]" style={fonte}>
             <p className="text-[14px] leading-relaxed text-[#d6d6d6]">
               Deseja exportar o backlog do projeto{' '}
-              <span className="text-white">{projetoNome}</span> para o Azure Boards?
+              <span className="font-semibold text-white">{projetoNome}</span> para o Azure Boards?
             </p>
 
             {contagem.total === 0 ? (
@@ -94,14 +104,23 @@ export function ModalExportarAzure({ projetoNome, epicos, onFechar }: ModalExpor
             ) : (
               <>
                 <ul className="flex flex-col gap-1 rounded-[8px] bg-[#1c1e1f] px-[14px] py-[10px] text-[13px] text-[#d6d6d6]">
-                  <li>{contagem.epicos} {contagem.epicos === 1 ? 'épico' : 'épicos'}</li>
-                  <li>{contagem.features} {contagem.features === 1 ? 'feature' : 'features'}</li>
-                  <li>{contagem.pbis} {contagem.pbis === 1 ? 'PBI' : 'PBIs'}</li>
+                  <li>
+                    {contagem.epicos} {contagem.epicos === 1 ? 'épico' : 'épicos'}
+                  </li>
+                  <li>
+                    {contagem.features} {contagem.features === 1 ? 'feature' : 'features'}
+                  </li>
+                  <li>
+                    {contagem.pbis} {contagem.pbis === 1 ? 'PBI' : 'PBIs'}
+                  </li>
                 </ul>
-                <p className="text-[12px] text-[#9a9a9a]">
-                  Os itens serão criados como novos no Azure Boards. Exportar o mesmo backlog mais de uma
-                  vez gera itens duplicados.
-                </p>
+                <div className="rounded-[8px] border border-[#2d2f31] bg-[#1a1c1d] p-3 text-[12px] text-[#9a9a9a]">
+                  <p className="mb-1 text-white font-medium">Atenção sobre o envio:</p>
+                  <p>
+                    Os itens do backlog serão enviados ao Azure DevOps e criados na ordem hierárquica
+                    (Épico → Feature → PBI). Reexportar o mesmo backlog gera novos itens no Azure Boards.
+                  </p>
+                </div>
               </>
             )}
 
@@ -119,35 +138,37 @@ export function ModalExportarAzure({ projetoNome, epicos, onFechar }: ModalExpor
                 disabled={contagem.total === 0}
                 className="h-[38px] cursor-pointer rounded-[8px] border-0 bg-[#ed6a32] px-[18px] text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Exportar
+                Exportar para Azure Boards
               </button>
             </div>
           </div>
         )}
 
-        {exportando && progresso && (
-          <div className="flex flex-col gap-[14px]" style={fonte} role="status" aria-live="polite">
-            <p className="flex items-center gap-2 text-[14px] text-[#d6d6d6]">
-              <Loader2 size={16} className="animate-spin text-[#ed6a32]" />
-              Exportando backlog...
-            </p>
-            <div className="h-[6px] w-full overflow-hidden rounded-full bg-[#2a2c2d]">
-              <div
-                className="h-full rounded-full bg-[#ed6a32] transition-[width] duration-300"
-                style={{ width: `${percentual}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3 text-[12px] text-[#9a9a9a]">
-              <span className="truncate">{progresso.atual}</span>
-              <span className="shrink-0">
-                {progresso.concluidos}/{progresso.total}
-              </span>
+        {exportando && (
+          <div
+            className="flex flex-col items-center gap-[16px] py-6 text-center"
+            style={fonte}
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 size={36} className="animate-spin text-[#ed6a32]" />
+            <div className="flex flex-col gap-1">
+              <p className="text-[15px] font-medium text-white">
+                Exportando backlog para o Azure Boards...
+              </p>
+              <p className="text-[13px] text-[#9a9a9a]">
+                Criando e vinculando Épicos, Features e PBIs na organização de destino. Por favor, aguarde.
+              </p>
             </div>
           </div>
         )}
 
-        {etapa === 'concluido' && resultado && (
-          <ResumoExportacao resultado={resultado} onFechar={onFechar} />
+        {etapa === 'concluido' && (
+          <ResumoExportacao
+            resultado={resultado}
+            erroFatal={erroFatal}
+            onFechar={onFechar}
+          />
         )}
       </div>
     </div>
@@ -156,76 +177,170 @@ export function ModalExportarAzure({ projetoNome, epicos, onFechar }: ModalExpor
 
 function ResumoExportacao({
   resultado,
+  erroFatal,
   onFechar,
 }: {
-  resultado: ResultadoExportacao;
+  resultado: ResultadoExportacaoBacklog | null;
+  erroFatal: string | null;
   onFechar: () => void;
 }) {
-  const { exportados, erros, ignorados, interrompidaPor } = resultado;
-  const sucessoTotal = erros.length === 0 && ignorados === 0 && !interrompidaPor;
+  if (erroFatal || !resultado) {
+    return (
+      <div className="flex flex-col gap-[16px]" style={fonte}>
+        <div className="flex items-center gap-2 text-[14px] text-[#ff641f]">
+          <AlertCircle size={20} className="shrink-0 text-[#ff641f]" />
+          <span>Não foi possível concluir a exportação.</span>
+        </div>
+        <div className="rounded-[8px] bg-[#291717] border border-[#522323] p-[12px] text-[13px] text-[#ff8d8d]">
+          {erroFatal || 'Erro desconhecido durante o processamento da exportação.'}
+        </div>
+        <div className="mt-[4px] flex justify-end">
+          <button
+            type="button"
+            onClick={onFechar}
+            className="h-[38px] cursor-pointer rounded-[8px] border-0 bg-[#ed6a32] px-[18px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const { summary, items, success, message } = resultado;
+  const falhas = items.filter((i) => i.status === 'FAILED');
+  const ignorados = items.filter((i) => i.status === 'SKIPPED');
+  const exportados = items.filter((i) => i.status === 'EXPORTED');
+
+  const parcial = !success && exportados.length > 0;
+  const falhaGeral = !success && exportados.length === 0;
 
   return (
     <div className="flex flex-col gap-[16px]" style={fonte}>
-      {sucessoTotal ? (
-        <p className="flex items-center gap-2 text-[14px] text-[#d6d6d6]">
-          <CheckCircle2 size={18} className="shrink-0 text-[#4ade80]" />
-          Backlog exportado com sucesso.
-        </p>
-      ) : (
-        <p className="flex items-center gap-2 text-[14px] text-[#d6d6d6]">
-          <AlertCircle size={18} className="shrink-0 text-[#ff641f]" />
-          {exportados.length > 0 ? 'Exportação concluída com problemas.' : 'Não foi possível exportar o backlog.'}
-        </p>
+      {success && (
+        <div className="flex items-center gap-2 text-[14px] text-[#4ade80]">
+          <CheckCircle2 size={20} className="shrink-0 text-[#4ade80]" />
+          <span className="font-medium">{message}</span>
+        </div>
       )}
 
-      {interrompidaPor && <p className="text-[13px] text-[#ff641f]">{interrompidaPor}</p>}
+      {parcial && (
+        <div className="flex items-center gap-2 text-[14px] text-[#f59e0b]">
+          <AlertTriangle size={20} className="shrink-0 text-[#f59e0b]" />
+          <span className="font-medium">{message}</span>
+        </div>
+      )}
 
-      <p className="text-[12px] text-[#9a9a9a]">
-        {exportados.length} {exportados.length === 1 ? 'item exportado' : 'itens exportados'}
-        {erros.length > 0 && ` · ${erros.length} com erro`}
-        {ignorados > 0 && ` · ${ignorados} não enviados`}
-      </p>
+      {falhaGeral && (
+        <div className="flex items-center gap-2 text-[14px] text-[#ff641f]">
+          <AlertCircle size={20} className="shrink-0 text-[#ff641f]" />
+          <span className="font-medium">{message}</span>
+        </div>
+      )}
 
-      {erros.length > 0 && (
+      {/* Cards de Resumo */}
+      <div className="grid grid-cols-4 gap-2 text-center text-[12px]">
+        <div className="rounded-[8px] bg-[#1c1e1f] p-2">
+          <span className="block text-[11px] text-[#8a8a8a]">Total</span>
+          <span className="text-[16px] font-semibold text-white">{summary.total}</span>
+        </div>
+        <div className="rounded-[8px] bg-[#1c1e1f] p-2">
+          <span className="block text-[11px] text-[#4ade80]">Exportados</span>
+          <span className="text-[16px] font-semibold text-[#4ade80]">{summary.exported}</span>
+        </div>
+        <div className="rounded-[8px] bg-[#1c1e1f] p-2">
+          <span className="block text-[11px] text-[#ff641f]">Falhas</span>
+          <span className="text-[16px] font-semibold text-[#ff641f]">{summary.failed}</span>
+        </div>
+        <div className="rounded-[8px] bg-[#1c1e1f] p-2">
+          <span className="block text-[11px] text-[#f59e0b]">Ignorados</span>
+          <span className="text-[16px] font-semibold text-[#f59e0b]">{summary.skipped}</span>
+        </div>
+      </div>
+
+      {/* Lista de Erros e Falhas */}
+      {falhas.length > 0 && (
         <div>
-          <h3 className="mb-[6px] text-[12px] text-[#9a9a9a]">Erros</h3>
-          <ul className="flex max-h-[160px] flex-col gap-2 overflow-y-auto rounded-[8px] bg-[#1c1e1f] p-[12px]">
-            {erros.map((e, i) => (
-              <li key={`${e.tipo}-${i}`} className="text-[12px]">
-                <span className="text-[#d6d6d6]">
-                  {e.tipo}: {e.titulo}
-                </span>
-                <span className="block text-[#ff641f]">{e.mensagem}</span>
+          <h3 className="mb-[6px] text-[12px] font-medium text-[#ff641f]">
+            Itens que falharam ({falhas.length})
+          </h3>
+          <ul className="flex max-h-[140px] flex-col gap-2 overflow-y-auto rounded-[8px] bg-[#221616] p-[12px]">
+            {falhas.map((item) => (
+              <li key={`fail-${item.type}-${item.sourceId}`} className="text-[12px]">
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-[#ff641f]/20 px-1 py-0.5 text-[10px] text-[#ff641f]">
+                    {item.type}
+                  </span>
+                  <span className="font-medium text-[#d6d6d6]">{item.name}</span>
+                </div>
+                {item.error && (
+                  <span className="mt-0.5 block text-[11px] text-[#ff8d8d]">{item.error}</span>
+                )}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {exportados.length > 0 && (
+      {/* Lista de Itens Ignorados por dependência */}
+      {ignorados.length > 0 && (
         <div>
-          <h3 className="mb-[6px] text-[12px] text-[#9a9a9a]">Itens criados</h3>
-          <ul className="flex max-h-[200px] flex-col gap-1.5 overflow-y-auto rounded-[8px] bg-[#1c1e1f] p-[12px]">
-            {exportados.map((item) => (
-              <li key={`${item.tipo}-${item.id}`} className="flex items-center gap-2 text-[12px] text-[#d6d6d6]">
-                <span className="shrink-0 text-[#6b6b6b]">{item.tipo}</span>
-                <span className="truncate">{item.titulo}</span>
-                {item.url ? (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Abrir item ${item.id} no Azure Boards`}
-                    className="ml-auto flex shrink-0 items-center gap-1 text-[#ed6a32] hover:text-[#ff8555]"
-                  >
-                    #{item.id}
-                    <ExternalLink size={12} />
-                  </a>
-                ) : (
-                  <span className="ml-auto shrink-0 text-[#6b6b6b]">#{item.id}</span>
+          <h3 className="mb-[6px] text-[12px] font-medium text-[#f59e0b]">
+            Itens não exportados por dependência ({ignorados.length})
+          </h3>
+          <ul className="flex max-h-[120px] flex-col gap-2 overflow-y-auto rounded-[8px] bg-[#221d14] p-[12px]">
+            {ignorados.map((item) => (
+              <li key={`skip-${item.type}-${item.sourceId}`} className="text-[12px]">
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-[#f59e0b]/20 px-1 py-0.5 text-[10px] text-[#f59e0b]">
+                    {item.type}
+                  </span>
+                  <span className="font-medium text-[#d6d6d6]">{item.name}</span>
+                </div>
+                {item.error && (
+                  <span className="mt-0.5 block text-[11px] text-[#fbbf24]">{item.error}</span>
                 )}
               </li>
             ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Lista de Itens Criados com sucesso */}
+      {exportados.length > 0 && (
+        <div>
+          <h3 className="mb-[6px] text-[12px] font-medium text-[#4ade80]">
+            Itens criados no Azure Boards ({exportados.length})
+          </h3>
+          <ul className="flex max-h-[160px] flex-col gap-1.5 overflow-y-auto rounded-[8px] bg-[#1c1e1f] p-[12px]">
+            {exportados.map((item) => {
+              const linkUrl = item.webUrl || item.url;
+              return (
+                <li
+                  key={`ok-${item.type}-${item.sourceId}`}
+                  className="flex items-center gap-2 text-[12px] text-[#d6d6d6]"
+                >
+                  <span className="w-[50px] shrink-0 text-[11px] text-[#8a8a8a]">{item.type}</span>
+                  <span className="truncate">{item.name}</span>
+                  {item.azureId && (
+                    linkUrl ? (
+                      <a
+                        href={linkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Abrir item #${item.azureId} no Azure Boards`}
+                        className="ml-auto flex shrink-0 items-center gap-1 text-[#ed6a32] hover:text-[#ff8555]"
+                      >
+                        #{item.azureId}
+                        <ExternalLink size={12} />
+                      </a>
+                    ) : (
+                      <span className="ml-auto shrink-0 text-[#8a8a8a]">#{item.azureId}</span>
+                    )
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
