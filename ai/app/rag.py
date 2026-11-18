@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import re
@@ -48,6 +49,14 @@ async def embedding_func(texts: list[str]) -> np.ndarray:
 
 
 rag_instance: LightRAG | None = None
+_insert_lock: asyncio.Lock | None = None
+
+
+def _get_insert_lock() -> asyncio.Lock:
+    global _insert_lock
+    if _insert_lock is None:
+        _insert_lock = asyncio.Lock()
+    return _insert_lock
 
 
 def get_rag() -> LightRAG:
@@ -89,102 +98,136 @@ async def shutdown() -> None:
         rag_instance = None
 
 
-async def insert(text: str, doc_id: str | None = None) -> None:
-    rag_inst = get_rag()
-    if doc_id:
+async def _substituir_documento(rag_inst: LightRAG, doc_id: str) -> None:
+    max_tentativas = 4
+    deletion_status: str | None = None
+    for tentativa in range(1, max_tentativas + 1):
         deletion = await rag_inst.adelete_by_doc_id(doc_id)
         deletion_status = getattr(deletion, "status", None)
-        if deletion_status is not None and deletion_status not in {"success", "not_found"}:
-            raise RuntimeError(
-                f"Não foi possível substituir o documento {doc_id}: "
-                f"{deletion_status}."
-            )
-
-        if hasattr(rag_inst, "apipeline_enqueue_documents") and hasattr(
-            rag_inst, "apipeline_process_enqueue_documents"
-        ):
-            await rag_inst.apipeline_enqueue_documents(
-                text,
-                ids=[doc_id],
-                process_options="!",
-            )
-            await rag_inst.apipeline_process_enqueue_documents()
-        else:
-            await rag_inst.ainsert(text, ids=[doc_id])
-
-        status = await rag_inst.doc_status.get_by_id(doc_id)
-        if not status:
-            logger.error(
-                "event=lightrag_index_verification_failed document_id=%s reason=missing_status",
+        if deletion_status is None or deletion_status in {"success", "not_found"}:
+            return
+        if deletion_status == "not_allowed" and tentativa < max_tentativas:
+            logger.warning(
+                "event=lightrag_delete_retry document_id=%s status=%s attempt=%d",
                 doc_id,
+                deletion_status,
+                tentativa,
             )
-            raise RuntimeError(f"O documento {doc_id} não foi persistido no LightRAG.")
+            await asyncio.sleep(0.5 * tentativa)
+            continue
+        break
 
-        raw_status = status.get("status")
-        document_status = getattr(raw_status, "value", raw_status)
-        chunk_ids = list(status.get("chunks_list") or [])
-        if document_status != "processed" or not chunk_ids:
-            logger.error(
-                "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d track_id=%s",
-                doc_id,
-                document_status,
-                len(chunk_ids),
-                status.get("track_id"),
-            )
-            raise RuntimeError(
-                f"O documento {doc_id} não foi indexado completamente "
-                f"(status={document_status}, chunks={len(chunk_ids)})."
-            )
+    raise RuntimeError(
+        f"Não foi possível substituir o documento {doc_id}: "
+        f"{deletion_status}."
+    )
 
-        chunks = await rag_inst.text_chunks.get_by_ids(chunk_ids)
-        valid_chunks = [
-            chunk_id
-            for chunk_id, chunk in zip(chunk_ids, chunks)
-            if chunk and chunk.get("content", "").strip()
-        ]
-        vectors = await recuperar_vetores_chunks(doc_id, valid_chunks)
-        missing_vectors = set(valid_chunks) - set(vectors)
-        valid_vector_ids = set()
-        for chunk_id in valid_chunks:
-            if chunk_id not in vectors:
-                continue
-            try:
-                vector = np.asarray(vectors[chunk_id], dtype=float)
-            except (TypeError, ValueError):
-                continue
-            if (
-                vector.ndim == 1
-                and vector.size == settings.embedding_dim
-                and np.all(np.isfinite(vector))
+
+async def _limpar_documento_incompleto(rag_inst: LightRAG, doc_id: str) -> None:
+    """Remove chunks órfãos quando uma indexação falha parcialmente."""
+    try:
+        await rag_inst.adelete_by_doc_id(doc_id)
+    except Exception as exc:
+        logger.warning(
+            "event=lightrag_incomplete_cleanup_failed document_id=%s error=%s",
+            doc_id,
+            exc,
+        )
+
+
+async def insert(text: str, doc_id: str | None = None) -> None:
+    rag_inst = get_rag()
+    async with _get_insert_lock():
+        if doc_id:
+            await _substituir_documento(rag_inst, doc_id)
+
+            if hasattr(rag_inst, "apipeline_enqueue_documents") and hasattr(
+                rag_inst, "apipeline_process_enqueue_documents"
             ):
-                norma = float(np.linalg.norm(vector))
-                if np.isfinite(norma) and norma > 0:
-                    valid_vector_ids.add(chunk_id)
-        invalid_vectors = set(valid_chunks) - valid_vector_ids
-        if (
-            len(valid_chunks) != len(chunk_ids)
-            or missing_vectors
-            or invalid_vectors
-        ):
-            logger.error(
-                "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d valid_text_chunks=%d returned_vectors=%d associated_vectors=%d valid_vectors=%d missing_vectors=%d invalid_vectors=%d embedding_dimension=%d",
-                doc_id,
-                document_status,
-                len(chunk_ids),
-                len(valid_chunks),
-                len(vectors),
-                len(set(valid_chunks) & set(vectors)),
-                len(valid_vector_ids),
-                len(missing_vectors),
-                len(invalid_vectors),
-                settings.embedding_dim,
-            )
-            raise RuntimeError(
-                f"O documento {doc_id} foi processado, mas seus chunks ou "
-                "embeddings não estão todos disponíveis."
-            )
-    else:
-        await rag_inst.ainsert(text)
+                await rag_inst.apipeline_enqueue_documents(
+                    text,
+                    ids=[doc_id],
+                    process_options="!",
+                )
+                await rag_inst.apipeline_process_enqueue_documents()
+            else:
+                await rag_inst.ainsert(text, ids=[doc_id])
+
+            status = await rag_inst.doc_status.get_by_id(doc_id)
+            if not status:
+                logger.error(
+                    "event=lightrag_index_verification_failed document_id=%s reason=missing_status",
+                    doc_id,
+                )
+                raise RuntimeError(f"O documento {doc_id} não foi persistido no LightRAG.")
+
+            raw_status = status.get("status")
+            document_status = getattr(raw_status, "value", raw_status)
+            chunk_ids = list(status.get("chunks_list") or [])
+            if document_status != "processed" or not chunk_ids:
+                logger.error(
+                    "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d track_id=%s",
+                    doc_id,
+                    document_status,
+                    len(chunk_ids),
+                    status.get("track_id"),
+                )
+                await _limpar_documento_incompleto(rag_inst, doc_id)
+                raise RuntimeError(
+                    f"O documento {doc_id} não foi indexado completamente "
+                    f"(status={document_status}, chunks={len(chunk_ids)})."
+                )
+
+            chunks = await rag_inst.text_chunks.get_by_ids(chunk_ids)
+            valid_chunks = [
+                chunk_id
+                for chunk_id, chunk in zip(chunk_ids, chunks)
+                if chunk and chunk.get("content", "").strip()
+            ]
+            vectors = await recuperar_vetores_chunks(doc_id, valid_chunks)
+            missing_vectors = set(valid_chunks) - set(vectors)
+            valid_vector_ids = set()
+            for chunk_id in valid_chunks:
+                if chunk_id not in vectors:
+                    continue
+                try:
+                    vector = np.asarray(vectors[chunk_id], dtype=float)
+                except (TypeError, ValueError):
+                    continue
+                if (
+                    vector.ndim == 1
+                    and vector.size == settings.embedding_dim
+                    and np.all(np.isfinite(vector))
+                ):
+                    norma = float(np.linalg.norm(vector))
+                    if np.isfinite(norma) and norma > 0:
+                        valid_vector_ids.add(chunk_id)
+            invalid_vectors = set(valid_chunks) - valid_vector_ids
+            if (
+                len(valid_chunks) != len(chunk_ids)
+                or missing_vectors
+                or invalid_vectors
+            ):
+                logger.error(
+                    "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d valid_text_chunks=%d returned_vectors=%d associated_vectors=%d valid_vectors=%d missing_vectors=%d invalid_vectors=%d embedding_dimension=%d",
+                    doc_id,
+                    document_status,
+                    len(chunk_ids),
+                    len(valid_chunks),
+                    len(vectors),
+                    len(set(valid_chunks) & set(vectors)),
+                    len(valid_vector_ids),
+                    len(missing_vectors),
+                    len(invalid_vectors),
+                    settings.embedding_dim,
+                )
+                await _limpar_documento_incompleto(rag_inst, doc_id)
+                raise RuntimeError(
+                    f"O documento {doc_id} foi processado, mas seus chunks ou "
+                    "embeddings não estão todos disponíveis."
+                )
+        else:
+            await rag_inst.ainsert(text)
 
 
 async def query(question: str, mode: str = "mix") -> str:
