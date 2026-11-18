@@ -129,3 +129,39 @@ async def test_chat_geral_timeout_e_indisponivel(client, monkeypatch):
 async def test_chat_geral_rag_nao_inicializado_retorna_500(client):
     resp = await client.post("/chat/general", json={"question": "x"})
     assert resp.status_code == 500
+
+
+async def test_executar_ate_desconectar_cancela_corrotina_quando_cliente_desconecta():
+    import asyncio
+    from types import SimpleNamespace
+
+    import pytest
+    from app.cancelamento import (
+        RequisicaoCanceladaPeloCliente,
+        executar_ate_desconectar,
+    )
+
+    evento_cancelada = asyncio.Event()
+    evento_iniciada = asyncio.Event()
+
+    async def tarefa_longa():
+        evento_iniciada.set()
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            evento_cancelada.set()
+            raise
+
+    async def receive():
+        await evento_iniciada.wait()
+        return {"type": "http.disconnect"}
+
+    fake_request = SimpleNamespace(
+        receive=receive,
+        url=SimpleNamespace(path="/chat/general"),
+    )
+
+    with pytest.raises(RequisicaoCanceladaPeloCliente):
+        await executar_ate_desconectar(fake_request, tarefa_longa())
+
+    assert evento_cancelada.is_set()

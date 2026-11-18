@@ -2,7 +2,11 @@ import { prisma } from "../lib/prisma";
 import { similarProjectsAiResponseSchema, type SimilarProjectsQuery } from "../schemas/similar-projects.schema";
 import { AIServiceError, postarParaIA } from "./chat-project.service";
 
-export async function findSimilarProjects(projectId: number, { limit }: SimilarProjectsQuery) {
+export async function findSimilarProjects(
+  projectId: number,
+  { limit }: SimilarProjectsQuery,
+  signal?: AbortSignal,
+) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: { id: true },
@@ -15,13 +19,20 @@ export async function findSimilarProjects(projectId: number, { limit }: SimilarP
     where: { id: { not: projectId } },
     select: { id: true },
   });
+  if (signal?.aborted) {
+    throw Object.assign(new Error("aborted"), { name: "AbortError" });
+  }
   const candidateIds = [...new Set(candidates.map(({ id }: { id: number }) => id))];
 
-  const response = await postarParaIA<unknown>("/projects/similar", {
-    project_id: projectId,
-    candidate_project_ids: candidateIds,
-    limit,
-  });
+  const response = await postarParaIA<unknown>(
+    "/projects/similar",
+    {
+      project_id: projectId,
+      candidate_project_ids: candidateIds,
+      limit,
+    },
+    signal,
+  );
   const parsedResponse = similarProjectsAiResponseSchema.safeParse(response);
   if (!parsedResponse.success) {
     console.error("Resposta inválida do serviço de projetos semelhantes:", parsedResponse.error.issues);

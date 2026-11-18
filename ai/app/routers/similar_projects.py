@@ -1,6 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import ollama_client
+from app.cancelamento import (
+    RequisicaoCanceladaPeloCliente,
+    executar_ate_desconectar,
+)
 from app.schemas.similar_projects_schema import (
     SimilarProjectsRequest,
     SimilarProjectsResponse,
@@ -17,9 +21,14 @@ router = APIRouter()
 
 
 @router.post("/projects/similar", response_model=SimilarProjectsResponse)
-async def similar_projects(body: SimilarProjectsRequest):
+async def similar_projects(body: SimilarProjectsRequest, http_request: Request):
     try:
-        return await buscar_projetos_semelhantes(body)
+        return await executar_ate_desconectar(
+            http_request,
+            buscar_projetos_semelhantes(body),
+        )
+    except RequisicaoCanceladaPeloCliente:
+        return Response(status_code=499)
     except ProjectNotIndexedError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except OriginEmbeddingsUnavailableError as exc:

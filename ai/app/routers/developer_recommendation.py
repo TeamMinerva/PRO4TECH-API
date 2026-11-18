@@ -1,8 +1,12 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import ollama_client
+from app.cancelamento import (
+    RequisicaoCanceladaPeloCliente,
+    executar_ate_desconectar,
+)
 from app.schemas.developer_recommendation_schema import (
     DeveloperRecommendationRequest,
     DeveloperRecommendationResponse,
@@ -15,9 +19,17 @@ router = APIRouter(tags=["Developer Recommendation"])
 
 
 @router.post("/developers/recommend", response_model=DeveloperRecommendationResponse)
-async def recommend_developers(body: DeveloperRecommendationRequest):
+async def recommend_developers(
+    body: DeveloperRecommendationRequest,
+    http_request: Request,
+):
     try:
-        return await recomendar_desenvolvedores(body)
+        return await executar_ate_desconectar(
+            http_request,
+            recomendar_desenvolvedores(body),
+        )
+    except RequisicaoCanceladaPeloCliente:
+        return Response(status_code=499)
     except ollama_client.OllamaTimeout as exc:
         raise HTTPException(
             status_code=504,
