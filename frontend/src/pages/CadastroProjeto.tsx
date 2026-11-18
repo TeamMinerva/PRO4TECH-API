@@ -154,7 +154,7 @@ export default function CadastroProjeto() {
         <div className="w-full pb-16 pr-4">
           <button
             type="button"
-            onClick={() => navigate(editando ? `/projetos/${id}` : '/galeria')}
+            onClick={() => navigate(editando ? `/projetos/${id}` : '/projetos')}
             className="mb-8 flex items-center gap-2 text-[#5a5f5f] hover:text-white transition-colors text-[15px] font-['Poppins']"
           >
             <ArrowLeft size={17} strokeWidth={1.75} />

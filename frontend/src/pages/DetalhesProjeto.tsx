@@ -1,5 +1,5 @@
 import { ArrowLeft, Bug, ListTodo, MessageSquare, Pencil, Plus, Upload } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BacklogEditavel } from '../components/BacklogEditavel';
 import { BotaoAba } from '../components/BotaoAba';
@@ -28,9 +28,9 @@ export default function DetalhesProjeto() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [chatAberto, setChatAberto] = useState(true);
-  const [semelhantesAberto, setSemelhantesAberto] = useState(true);
+  const [semelhantesAberto, setSemelhantesAberto] = useState(false);
   const [projetosSemelhantes, setProjetosSemelhantes] = useState<ProjetoSemelhanteIA[]>([]);
-  const [statusSemelhantes, setStatusSemelhantes] = useState<'carregando' | 'sucesso' | 'erro'>('carregando');
+  const [statusSemelhantes, setStatusSemelhantes] = useState<'ocioso' | 'carregando' | 'sucesso' | 'erro'>('ocioso');
   const [projetoIdSemelhantes, setProjetoIdSemelhantes] = useState<number | null>(null);
   const [erroSemelhantes, setErroSemelhantes] = useState<string | null>(null);
   const [equipeAberta, setEquipeAberta] = useState(false);
@@ -40,6 +40,8 @@ export default function DetalhesProjeto() {
   const devsDisponiveis = useDesenvolvedores();
   const backlog = useBacklogEditavel();
   const { carregar: carregarBacklog } = backlog;
+  const idAtualRef = useRef(id);
+  idAtualRef.current = id;
   // Chat restrito a este projeto; troca junto com o id da rota.
   const enviarChat = useMemo(() => criarEnviarChatProjeto(id ?? ''), [id]);
 
@@ -49,6 +51,11 @@ export default function DetalhesProjeto() {
     let ativo = true;
     setCarregando(true);
     setErro(null);
+    setSemelhantesAberto(false);
+    setStatusSemelhantes('ocioso');
+    setProjetoIdSemelhantes(null);
+    setProjetosSemelhantes([]);
+    setErroSemelhantes(null);
 
     getProjectById(id)
       .then((dados) => {
@@ -70,55 +77,42 @@ export default function DetalhesProjeto() {
     };
   }, [id, carregarBacklog]);
 
-  const projetoIdAtual = projeto?.id;
-  useEffect(() => {
+  const buscarSemelhantes = (forcarNovaBusca = false) => {
+    const projetoIdAtual = projeto?.id;
     if (!id || !projetoIdAtual || projetoIdAtual !== Number(id)) return;
+    if (!forcarNovaBusca && projetoIdSemelhantes === projetoIdAtual && (statusSemelhantes === 'carregando' || statusSemelhantes === 'sucesso')) {
+      return;
+    }
 
-    let ativo = true;
-    getSimilarProjects(id)
-      .then((response) => {
-        if (ativo) {
-          setProjetoIdSemelhantes(response.projectId);
-          setProjetosSemelhantes(response.similarProjects);
-          setStatusSemelhantes('sucesso');
-        }
-      })
-      .catch((error: unknown) => {
-        if (ativo) {
-          setProjetoIdSemelhantes(Number(id));
-          const message = error instanceof Error
-            ? error.message
-            : 'Não foi possível buscar projetos semelhantes.';
-          setErroSemelhantes(message);
-          setStatusSemelhantes('erro');
-        }
-      });
-
-    return () => {
-      ativo = false;
-    };
-  }, [id, projetoIdAtual]);
-
-  const tentarBuscarSemelhantesNovamente = () => {
-    if (!id) return;
-
-    setProjetoIdSemelhantes(Number(id));
+    const idBuscado = id;
+    setProjetoIdSemelhantes(projetoIdAtual);
     setStatusSemelhantes('carregando');
     setErroSemelhantes(null);
-    getSimilarProjects(id, true)
+
+    getSimilarProjects(idBuscado, forcarNovaBusca)
       .then((response) => {
+        if (idAtualRef.current !== idBuscado) return;
         setProjetoIdSemelhantes(response.projectId);
         setProjetosSemelhantes(response.similarProjects);
         setStatusSemelhantes('sucesso');
       })
       .catch((error: unknown) => {
-        setProjetoIdSemelhantes(Number(id));
+        if (idAtualRef.current !== idBuscado) return;
+        setProjetoIdSemelhantes(Number(idBuscado));
         const message = error instanceof Error
           ? error.message
           : 'Não foi possível buscar projetos semelhantes.';
         setErroSemelhantes(message);
         setStatusSemelhantes('erro');
       });
+  };
+
+  const alternarSemelhantes = () => {
+    const proximoAberto = !semelhantesAberto;
+    setSemelhantesAberto(proximoAberto);
+    if (proximoAberto) {
+      buscarSemelhantes(false);
+    }
   };
 
   // minmax(0, ...) impede que textos longos estourem as margens da tabela
@@ -131,7 +125,7 @@ export default function DetalhesProjeto() {
     : '';
   const statusSemelhantesAtual = projeto?.id === projetoIdSemelhantes
     ? statusSemelhantes
-    : 'carregando';
+    : 'ocioso';
   const resultadosSemelhantesAtuais = projeto?.id === projetoIdSemelhantes
     ? projetosSemelhantes
     : [];
@@ -200,23 +194,25 @@ export default function DetalhesProjeto() {
                 </div>
 
                 <Expansivel
-                  rotulo="Projetos semelhantes"
+                  rotulo="Buscar projetos semelhantes"
                   aberto={semelhantesAberto}
-                  onAlternar={() => setSemelhantesAberto(!semelhantesAberto)}
+                  onAlternar={alternarSemelhantes}
                   vazio={
                     statusSemelhantesAtual === 'sucesso'
                       ? 'Nenhum projeto semelhante encontrado.'
                       : ''
                   }
-                  itens={statusSemelhantesAtual === 'carregando'
-                    ? [<span key="carregando" className="text-base text-[#5a5f5f]">Buscando projetos semelhantes...</span>]
+                  itens={statusSemelhantesAtual === 'ocioso'
+                    ? []
+                    : statusSemelhantesAtual === 'carregando'
+                    ? [<span key="carregando" className="text-base text-[#5a5f5f]">Analisando projetos semelhantes na sua base de dados...</span>]
                     : statusSemelhantesAtual === 'erro'
                       ? [
                         <div key="erro" className="flex flex-wrap items-center gap-3">
                           <span className="text-base text-[#ED6A32]">{erroSemelhantes}</span>
                           <button
                             type="button"
-                            onClick={tentarBuscarSemelhantesNovamente}
+                            onClick={() => buscarSemelhantes(true)}
                             className="text-sm text-[#d6d6d6] underline hover:text-[#ED6A32]"
                           >
                             Tentar novamente

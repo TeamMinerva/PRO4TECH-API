@@ -34,6 +34,11 @@ export function ModalCadastroBug({
     e.preventDefault();
     setErro(null);
 
+    if (!titulo.trim() || !problema.trim() || !solucao.trim()) {
+      setErro('Preencha o título, o problema e a solução.');
+      return;
+    }
+
     if (!devId) {
       setErro('Selecione o desenvolvedor que solucionou.');
       return;
@@ -65,6 +70,7 @@ export function ModalCadastroBug({
     >
       <form
         onSubmit={handleSalvar}
+        noValidate
         onClick={(e) => e.stopPropagation()}
         className="relative max-h-full w-full max-w-[400px] overflow-y-auto rounded-[14px] bg-[#141617] p-[24px]"
       >
@@ -161,7 +167,7 @@ export function ModalCadastroBug({
             </select>
           </div>
 
-          {erro && <p className="text-[12px] text-[#ff641f]">{erro}</p>}
+          {erro && <p role="alert" className="text-[12px] text-[#ff641f]">{erro}</p>}
 
           <div className="mt-[4px] flex items-center justify-end gap-[10px]">
             <button

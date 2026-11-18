@@ -44,8 +44,9 @@ export async function createBug(data: CreateBugInput) {
     data: normalize(data),
   });
 
-  indexador.atualizarProjetoNoRAG(bug.projectId);
-  indexador.atualizarDesenvolvedorNoRAG(bug.developerId);
+  void indexador
+    .atualizarProjetoNoRAG(bug.projectId)
+    .then(() => indexador.atualizarDesenvolvedorNoRAG(bug.developerId));
 
   return bug;
 }
@@ -67,16 +68,19 @@ export async function updateBug(id: number, data: CreateBugInput) {
     data: normalize(data),
   });
 
-  indexador.atualizarProjetoNoRAG(updatedBug.projectId);
-  indexador.atualizarDesenvolvedorNoRAG(updatedBug.developerId);
+  let cadeia = indexador
+    .atualizarProjetoNoRAG(updatedBug.projectId)
+    .then(() => indexador.atualizarDesenvolvedorNoRAG(updatedBug.developerId));
 
   if (existing.projectId !== updatedBug.projectId) {
-    indexador.atualizarProjetoNoRAG(existing.projectId);
+    cadeia = cadeia.then(() => indexador.atualizarProjetoNoRAG(existing.projectId));
   }
 
   if (existing.developerId !== updatedBug.developerId) {
-    indexador.atualizarDesenvolvedorNoRAG(existing.developerId);
+    cadeia = cadeia.then(() => indexador.atualizarDesenvolvedorNoRAG(existing.developerId));
   }
+
+  void cadeia;
 
   return updatedBug;
 }

@@ -320,7 +320,7 @@ export default function Home() {
               style={{ fontFamily: "Outfit, sans-serif" }}
               data-node-id="29:92"
             >
-              começe por aqui.
+              comece por aqui.
             </p>
           ) : (
             <div className="mt-auto flex flex-col gap-4 py-2">
