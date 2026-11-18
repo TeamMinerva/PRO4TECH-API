@@ -54,21 +54,21 @@ export function useGeneralChat() {
   }, []);
 
   useEffect(() => {
-    const ctrl = new AbortController();
-    listarConversas(ctrl.signal)
+    let ativo = true;
+    listarConversas()
       .then((lista) => {
-        if (!ctrl.signal.aborted) {
+        if (ativo) {
           setConversas(lista);
         }
       })
       .catch((err) => {
-        if (!ctrl.signal.aborted) {
+        if (ativo) {
           console.error('Erro ao carregar conversas:', err);
         }
       });
 
     return () => {
-      ctrl.abort();
+      ativo = false;
       controlador.current?.abort();
     };
   }, []);

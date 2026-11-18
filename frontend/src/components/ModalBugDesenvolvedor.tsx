@@ -140,7 +140,7 @@ export function ModalBugDesenvolvedor({
         }
       }}
     >
-      <form className="dev-form" onSubmit={submit}>
+      <form className="dev-form" onSubmit={submit} noValidate>
         <header className="dev-dialog-header">
           <h2 id="developer-bug-title">{modalTitle}</h2>
           <button

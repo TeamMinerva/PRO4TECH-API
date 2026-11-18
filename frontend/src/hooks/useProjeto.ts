@@ -186,6 +186,16 @@ export function useProjeto(projetoId?: string) {
   const erroDoCampo = (chave: string) => (camposMarcados.has(chave) ? erros[chave] : undefined);
   const temErrosVisiveis = Object.keys(erros).some((chave) => camposMarcados.has(chave));
 
+  useEffect(() => {
+    if (
+      feedback?.tipo === 'erro' &&
+      feedback.mensagem === 'Há campos obrigatórios não preenchidos.' &&
+      !temErrosVisiveis
+    ) {
+      setFeedback(null);
+    }
+  }, [feedback, temErrosVisiveis]);
+
   const atualizarNome = (nome: string) => setProjeto((prev) => ({ ...prev, nome }));
 
   const definirStatus = (status: string) => setProjeto((prev) => ({ ...prev, status }));
