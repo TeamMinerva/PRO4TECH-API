@@ -15,6 +15,7 @@ import { useTempoProcessamento } from './useTempoProcessamento';
 export interface MensagemGeralExibida extends MensagemChatGeral {
   id: number;
   falhou?: boolean;
+  cancelada?: boolean;
   fontes?: FonteChat[];
   createdAt?: string;
 }
@@ -42,6 +43,7 @@ export function useGeneralChat() {
   const conversaAtivaIdRef = useRef<number | null>(null);
   const proximoId = useRef(1);
   const controlador = useRef<AbortController | null>(null);
+  const idPerguntaAtivaRef = useRef<number | null>(null);
 
   const atualizarMensagens = useCallback((proximas: MensagemGeralExibida[]) => {
     mensagensRef.current = proximas;
@@ -78,6 +80,7 @@ export function useGeneralChat() {
       if (conversaAtivaIdRef.current === id && !erro) return;
 
       controlador.current?.abort();
+      idPerguntaAtivaRef.current = null;
       parar();
       const ctrl = new AbortController();
       controlador.current = ctrl;
@@ -120,6 +123,7 @@ export function useGeneralChat() {
 
   const iniciarNovaConversa = useCallback(async () => {
     controlador.current?.abort();
+    idPerguntaAtivaRef.current = null;
     parar();
     const ctrl = new AbortController();
     controlador.current = ctrl;
@@ -167,6 +171,7 @@ export function useGeneralChat() {
       if (conversaAtivaIdRef.current === id) {
         controlador.current?.abort();
         controlador.current = null;
+        idPerguntaAtivaRef.current = null;
         parar();
         definirConversaAtiva(null);
         atualizarMensagens([]);
@@ -185,14 +190,16 @@ export function useGeneralChat() {
       idPergunta: number,
     ) => {
       const historico: MensagemChatGeral[] = base
-        .filter((m) => !m.falhou && m.id !== idPergunta)
+        .filter((m) => !m.falhou && !m.cancelada && m.id !== idPergunta)
         .slice(-MAX_HISTORICO)
         .map(({ role, content }) => ({ role, content }));
 
       controlador.current?.abort();
+      idPerguntaAtivaRef.current = null;
       parar();
       const ctrl = new AbortController();
       controlador.current = ctrl;
+      idPerguntaAtivaRef.current = idPergunta;
       setEnviando(true);
       setErro(null);
       iniciar();
@@ -271,10 +278,11 @@ export function useGeneralChat() {
         );
       } finally {
         if (controlador.current === ctrl) {
-          controlador.current= null;
+          controlador.current = null;
+          idPerguntaAtivaRef.current = null;
           parar();
           setEnviando(false);
-        } 
+        }
       }
     },
     [atualizarMensagens, definirConversaAtiva, iniciar, parar],
@@ -300,6 +308,31 @@ export function useGeneralChat() {
     },
     [atualizarMensagens, carregandoConversa, perguntar],
   );
+
+  const cancelar = useCallback(() => {
+    const ctrl = controlador.current;
+    if (!ctrl || idPerguntaAtivaRef.current === null) return;
+
+    const idPergunta = idPerguntaAtivaRef.current;
+    controlador.current = null;
+    idPerguntaAtivaRef.current = null;
+    ctrl.abort();
+    parar();
+    setEnviando(false);
+
+    atualizarMensagens([
+      ...mensagensRef.current.map((m) =>
+        m.id === idPergunta ? { ...m, cancelada: true } : m,
+      ),
+      {
+        id: proximoId.current++,
+        role: 'assistant',
+        content: '*Resposta cancelada pelo usuário.*',
+        cancelada: true,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+  }, [atualizarMensagens, parar]);
 
   const tentarNovamente = useCallback(() => {
     if (controlador.current || carregandoConversa) return;
@@ -330,6 +363,7 @@ export function useGeneralChat() {
     carregandoConversa,
     erro,
     enviarMensagem,
+    cancelar,
     tentarNovamente,
     selecionarConversa,
     iniciarNovaConversa,

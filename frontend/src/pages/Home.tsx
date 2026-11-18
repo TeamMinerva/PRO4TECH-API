@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { History, Link2, X, ArrowUp, Pencil, Trash2, Check } from "lucide-react";
 import { useGeneralChat } from "../hooks/useGeneralChat";
+import { BotaoCancelarChat } from "../components/BotaoCancelarChat";
 import { MensagemMarkdown } from "../components/MensagemMarkdown";
 import { formatarHorario } from "../utils/formatarHorario";
 import type { FonteChat } from "../services/generalChatService";
@@ -35,6 +36,7 @@ export default function Home() {
     carregandoConversa,
     erro,
     enviarMensagem,
+    cancelar,
     tentarNovamente,
     selecionarConversa,
     iniciarNovaConversa,
@@ -444,18 +446,22 @@ export default function Home() {
               style={{ fontFamily: "Poppins, sans-serif" }}
               data-node-id="32:98"
             />
-            <button
-              type="submit"
-              aria-label="Enviar mensagem"
-              disabled={!podeEnviar}
-              className={`flex size-[26px] shrink-0 items-center justify-center transition-colors sm:size-[30px] ${
-                podeEnviar
-                  ? "text-[#ED6A32] hover:text-[#ff8555]"
-                  : "cursor-not-allowed text-[#3d3f40] disabled:opacity-50"
-              }`}
-            >
-              <ArrowUp size={18} className="sm:size-[19px]" />
-            </button>
+            {enviando ? (
+              <BotaoCancelarChat onClick={cancelar} className="sm:size-[30px]" />
+            ) : (
+              <button
+                type="submit"
+                aria-label="Enviar mensagem"
+                disabled={!podeEnviar}
+                className={`flex size-[26px] shrink-0 items-center justify-center transition-colors sm:size-[30px] ${
+                  podeEnviar
+                    ? "text-[#ED6A32] hover:text-[#ff8555]"
+                    : "cursor-not-allowed text-[#3d3f40] disabled:opacity-50"
+                }`}
+              >
+                <ArrowUp size={18} className="sm:size-[19px]" />
+              </button>
+            )}
           </div>
         </form>
       </div>
