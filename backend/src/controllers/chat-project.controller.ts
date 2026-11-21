@@ -6,6 +6,7 @@ import {
 } from "../schemas/chat-project.schema";
 import { developerIdParamSchema } from "../schemas/developer.schema";
 import { getProjectParamsSchema } from "../schemas/project.schema";
+import { criarControladorRequisicao, isAbortError } from "../services/ai-http.service";
 import {
   analisarRascunhoProjeto,
   ChatServiceError,
@@ -30,15 +31,26 @@ export async function chatProjetoController(req: Request, res: Response) {
     });
   }
 
+  const ctrl = criarControladorRequisicao(req, res);
+
   try {
     const userCreatedAt = new Date().toISOString();
-    const answer = await perguntarSobreProjeto(params.data.id, body.data.question, body.data.history);
+    const answer = await perguntarSobreProjeto(
+      params.data.id,
+      body.data.question,
+      body.data.history,
+      ctrl.signal,
+    );
+    if (ctrl.signal.aborted) return;
     return res.status(200).json({
       answer,
       userCreatedAt,
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
+    if (isAbortError(error) || ctrl.signal.aborted) {
+      return;
+    }
     if (error instanceof ChatServiceError) {
       return res.status(error.status).json({ message: error.message });
     }
@@ -63,19 +75,26 @@ export async function chatDesenvolvedorController(req: Request, res: Response) {
     });
   }
 
+  const ctrl = criarControladorRequisicao(req, res);
+
   try {
     const userCreatedAt = new Date().toISOString();
     const answer = await perguntarSobreDesenvolvedor(
       params.data.id,
       body.data.question,
       body.data.history,
+      ctrl.signal,
     );
+    if (ctrl.signal.aborted) return;
     return res.status(200).json({
       answer,
       userCreatedAt,
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
+    if (isAbortError(error) || ctrl.signal.aborted) {
+      return;
+    }
     if (error instanceof ChatServiceError) {
       return res.status(error.status).json({ message: error.message });
     }
@@ -93,19 +112,26 @@ export async function chatRascunhoController(req: Request, res: Response) {
     });
   }
 
+  const ctrl = criarControladorRequisicao(req, res);
+
   try {
     const userCreatedAt = new Date().toISOString();
     const answer = await perguntarSobreRascunho(
       body.data.draft,
       body.data.question,
       body.data.history,
+      ctrl.signal,
     );
+    if (ctrl.signal.aborted) return;
     return res.status(200).json({
       answer,
       userCreatedAt,
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
+    if (isAbortError(error) || ctrl.signal.aborted) {
+      return;
+    }
     if (error instanceof ChatServiceError) {
       return res.status(error.status).json({ message: error.message });
     }
@@ -123,18 +149,25 @@ export async function analisarRascunhoController(req: Request, res: Response) {
     });
   }
 
+  const ctrl = criarControladorRequisicao(req, res);
+
   try {
     const userCreatedAt = new Date().toISOString();
     const answer = await analisarRascunhoProjeto(
       body.data.draft,
       body.data.history,
+      ctrl.signal,
     );
+    if (ctrl.signal.aborted) return;
     return res.status(200).json({
       answer,
       userCreatedAt,
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
+    if (isAbortError(error) || ctrl.signal.aborted) {
+      return;
+    }
     if (error instanceof ChatServiceError) {
       return res.status(error.status).json({ message: error.message });
     }

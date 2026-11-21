@@ -1,8 +1,12 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import ollama_client
+from app.cancelamento import (
+    RequisicaoCanceladaPeloCliente,
+    executar_ate_desconectar,
+)
 from app.schemas.project_chat_schema import ProjectChatRequest, ProjectChatResponse
 from app.services.project_chat_service import project_chat_service
 
@@ -12,9 +16,17 @@ router = APIRouter(prefix="/chat/project", tags=["Project Chat"])
 
 
 @router.post("", response_model=ProjectChatResponse)
-async def chat_project(request: ProjectChatRequest) -> ProjectChatResponse:
+async def chat_project(
+    request: ProjectChatRequest,
+    http_request: Request,
+) -> ProjectChatResponse | Response:
     try:
-        answer = await project_chat_service.responder(request)
+        answer = await executar_ate_desconectar(
+            http_request,
+            project_chat_service.responder(request),
+        )
+    except RequisicaoCanceladaPeloCliente:
+        return Response(status_code=499)
     except ollama_client.OllamaTimeout:
         raise HTTPException(status_code=504, detail="O modelo demorou demais para responder.")
     except ollama_client.OllamaUnavailable as exc:

@@ -74,6 +74,42 @@ test("perguntarSobreRascunho e analisarRascunhoProjeto encaminham o rascunho par
       );
       aiStatus = 200;
     });
+
+    await t.test("aborta a requisição ao serviço de IA quando o AbortSignal é disparado", async () => {
+      let requisicaoAbortadaNoServidor = false;
+      const servidorLento = createServer((request, response) => {
+        request.resume();
+        response.on("close", () => {
+          if (!response.writableEnded) {
+            requisicaoAbortadaNoServidor = true;
+          }
+        });
+      });
+
+      await new Promise<void>((resolve) => servidorLento.listen(0, "127.0.0.1", resolve));
+      const enderecoLento = servidorLento.address();
+      assert.ok(enderecoLento && typeof enderecoLento !== "string");
+
+      const { isAbortError, postJson } = await import("../src/services/ai-http.service");
+      const ctrl = new AbortController();
+
+      try {
+        const promessa = postJson(
+          `http://127.0.0.1:${enderecoLento.port}/chat/project-draft`,
+          { draft: {}, question: "oi", history: [] },
+          5000,
+          ctrl.signal,
+        );
+
+        setTimeout(() => ctrl.abort(), 30);
+
+        await assert.rejects(promessa, (error: unknown) => isAbortError(error));
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        assert.equal(requisicaoAbortadaNoServidor, true);
+      } finally {
+        await new Promise<void>((resolve) => servidorLento.close(() => resolve()));
+      }
+    });
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

@@ -1,8 +1,12 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import ollama_client
+from app.cancelamento import (
+    RequisicaoCanceladaPeloCliente,
+    executar_ate_desconectar,
+)
 from app.schemas.draft_chat_schema import (
     DraftAnalysisRequest,
     DraftAnalysisResponse,
@@ -17,9 +21,17 @@ router = APIRouter(prefix="/chat/project-draft", tags=["Draft Chat"])
 
 
 @router.post("", response_model=DraftChatResponse)
-async def chat_project_draft(request: DraftChatRequest) -> DraftChatResponse:
+async def chat_project_draft(
+    request: DraftChatRequest,
+    http_request: Request,
+) -> DraftChatResponse | Response:
     try:
-        answer = await draft_chat_service.responder(request)
+        answer = await executar_ate_desconectar(
+            http_request,
+            draft_chat_service.responder(request),
+        )
+    except RequisicaoCanceladaPeloCliente:
+        return Response(status_code=499)
     except ollama_client.OllamaTimeout:
         raise HTTPException(
             status_code=504, detail="O modelo demorou demais para responder."
@@ -39,9 +51,15 @@ async def chat_project_draft(request: DraftChatRequest) -> DraftChatResponse:
 @router.post("/analyze", response_model=DraftAnalysisResponse)
 async def analyze_project_draft(
     request: DraftAnalysisRequest,
-) -> DraftAnalysisResponse:
+    http_request: Request,
+) -> DraftAnalysisResponse | Response:
     try:
-        answer = await draft_chat_service.analisar(request)
+        answer = await executar_ate_desconectar(
+            http_request,
+            draft_chat_service.analisar(request),
+        )
+    except RequisicaoCanceladaPeloCliente:
+        return Response(status_code=499)
     except ollama_client.OllamaTimeout:
         raise HTTPException(
             status_code=504, detail="O modelo demorou demais para responder."

@@ -1,6 +1,7 @@
 import { ArrowUp, Trash2, X } from 'lucide-react';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from 'react';
 import { useChat } from '../hooks/useChat';
+import { BotaoCancelarChat } from './BotaoCancelarChat';
 import { MensagemMarkdown } from './MensagemMarkdown';
 import { formatarHorario } from '../utils/formatarHorario';
 import type { EnviarMensagemChat } from '../services/chatService';
@@ -44,7 +45,7 @@ export const ChatLateral = forwardRef<ChatLateralHandle, ChatLateralProps>(funct
   },
   ref,
 ) {
-  const { mensagens, enviando, segundos, erro, enviarMensagem, tentarNovamente, limpar } = useChat(onEnviar);
+  const { mensagens, enviando, segundos, erro, enviarMensagem, cancelar, tentarNovamente, limpar } = useChat(onEnviar);
   const [texto, setTexto] = useState('');
   const fimDaLista = useRef<HTMLDivElement>(null);
 
@@ -221,16 +222,20 @@ export const ChatLateral = forwardRef<ChatLateralHandle, ChatLateralProps>(funct
             className="m-0 w-full border-0 bg-transparent p-0 text-[14px] text-white outline-none placeholder-[#3d3f40] disabled:opacity-60"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           />
-          <button
-            type="submit"
-            disabled={!podeEnviar}
-            aria-label="Enviar mensagem"
-            className={`flex size-[26px] shrink-0 items-center justify-center transition-colors ${
-              podeEnviar ? 'text-[#ED6A32] hover:text-[#ff8555]' : 'cursor-not-allowed text-[#3d3f40]'
-            }`}
-          >
-            <ArrowUp size={18} />
-          </button>
+          {enviando ? (
+            <BotaoCancelarChat onClick={cancelar} />
+          ) : (
+            <button
+              type="submit"
+              disabled={!podeEnviar}
+              aria-label="Enviar mensagem"
+              className={`flex size-[26px] shrink-0 items-center justify-center transition-colors ${
+                podeEnviar ? 'text-[#ED6A32] hover:text-[#ff8555]' : 'cursor-not-allowed text-[#3d3f40]'
+              }`}
+            >
+              <ArrowUp size={18} />
+            </button>
+          )}
         </form>
       </div>
     </aside>

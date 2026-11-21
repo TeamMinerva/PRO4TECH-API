@@ -1,8 +1,12 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import ollama_client
+from app.cancelamento import (
+    RequisicaoCanceladaPeloCliente,
+    executar_ate_desconectar,
+)
 from app.schemas.developer_chat_schema import (
     DeveloperChatRequest,
     DeveloperChatResponse,
@@ -15,9 +19,17 @@ router = APIRouter(prefix="/chat/developer", tags=["Developer Chat"])
 
 
 @router.post("", response_model=DeveloperChatResponse)
-async def chat_developer(request: DeveloperChatRequest) -> DeveloperChatResponse:
+async def chat_developer(
+    request: DeveloperChatRequest,
+    http_request: Request,
+) -> DeveloperChatResponse | Response:
     try:
-        answer = await developer_chat_service.responder(request)
+        answer = await executar_ate_desconectar(
+            http_request,
+            developer_chat_service.responder(request),
+        )
+    except RequisicaoCanceladaPeloCliente:
+        return Response(status_code=499)
     except ollama_client.OllamaTimeout:
         raise HTTPException(
             status_code=504,

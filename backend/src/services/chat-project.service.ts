@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import type { ChatMessage } from "../schemas/chat-project.schema";
 import type { ProjectDraft } from "../schemas/project-draft.schema";
-import { AI_URL, AI_TIMEOUT_MS, postJson } from "./ai-http.service";
+import { AI_URL, AI_TIMEOUT_MS, isAbortError, postJson } from "./ai-http.service";
 
 export class AIServiceError extends Error {
   constructor(
@@ -24,11 +24,18 @@ interface AiErrorBody {
  * desenvolvedor, ...) é um endpoint próprio no serviço Python; aqui só
  * traduzimos falhas de infraestrutura em erros HTTP coerentes para o front.
  */
-export async function postarParaIA<TResposta>(path: string, body: unknown): Promise<TResposta> {
+export async function postarParaIA<TResposta>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<TResposta> {
   let resposta;
   try {
-    resposta = await postJson(`${AI_URL}${path}`, body, AI_TIMEOUT_MS);
+    resposta = await postJson(`${AI_URL}${path}`, body, AI_TIMEOUT_MS, signal);
   } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     if (error instanceof Error && error.name === "TimeoutError") {
       throw new AIServiceError("A IA demorou demais para responder. Tente novamente.", 504);
     }
@@ -61,6 +68,7 @@ export async function perguntarSobreProjeto(
   projectId: number,
   question: string,
   history: ChatMessage[],
+  signal?: AbortSignal,
 ): Promise<string> {
   const projeto = await prisma.project.findUnique({
     where: { id: projectId },
@@ -69,12 +77,19 @@ export async function perguntarSobreProjeto(
   if (!projeto) {
     throw new AIServiceError("Projeto não encontrado.", 404);
   }
+  if (signal?.aborted) {
+    throw Object.assign(new Error("aborted"), { name: "AbortError" });
+  }
 
-  const resposta = await postarParaIA<{ answer: string }>("/chat/project", {
-    project_id: projectId,
-    question,
-    history,
-  });
+  const resposta = await postarParaIA<{ answer: string }>(
+    "/chat/project",
+    {
+      project_id: projectId,
+      question,
+      history,
+    },
+    signal,
+  );
   return resposta.answer;
 }
 
@@ -82,6 +97,7 @@ export async function perguntarSobreDesenvolvedor(
   developerId: number,
   question: string,
   history: ChatMessage[],
+  signal?: AbortSignal,
 ): Promise<string> {
   const desenvolvedor = await prisma.developer.findUnique({
     where: { id: developerId },
@@ -90,12 +106,19 @@ export async function perguntarSobreDesenvolvedor(
   if (!desenvolvedor) {
     throw new ChatServiceError("Desenvolvedor não encontrado.", 404);
   }
+  if (signal?.aborted) {
+    throw Object.assign(new Error("aborted"), { name: "AbortError" });
+  }
 
-  const resposta = await postarParaIA<{ answer: string }>("/chat/developer", {
-    developer_id: developerId,
-    question,
-    history,
-  });
+  const resposta = await postarParaIA<{ answer: string }>(
+    "/chat/developer",
+    {
+      developer_id: developerId,
+      question,
+      history,
+    },
+    signal,
+  );
   return resposta.answer;
 }
 
@@ -103,22 +126,32 @@ export async function perguntarSobreRascunho(
   draft: ProjectDraft,
   question: string,
   history: ChatMessage[],
+  signal?: AbortSignal,
 ): Promise<string> {
-  const resposta = await postarParaIA<{ answer: string }>("/chat/project-draft", {
-    draft,
-    question,
-    history,
-  });
+  const resposta = await postarParaIA<{ answer: string }>(
+    "/chat/project-draft",
+    {
+      draft,
+      question,
+      history,
+    },
+    signal,
+  );
   return resposta.answer;
 }
 
 export async function analisarRascunhoProjeto(
   draft: ProjectDraft,
   history: ChatMessage[],
+  signal?: AbortSignal,
 ): Promise<string> {
-  const resposta = await postarParaIA<{ answer: string }>("/chat/project-draft/analyze", {
-    draft,
-    history,
-  });
+  const resposta = await postarParaIA<{ answer: string }>(
+    "/chat/project-draft/analyze",
+    {
+      draft,
+      history,
+    },
+    signal,
+  );
   return resposta.answer;
 }

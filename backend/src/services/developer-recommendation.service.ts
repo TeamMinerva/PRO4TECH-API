@@ -22,22 +22,30 @@ export interface DeveloperRecommendationResult {
 
 export async function recommendDevelopersForPbi(
   input: RecommendDevelopersInput,
+  signal?: AbortSignal,
 ): Promise<DeveloperRecommendationResult> {
   const inactiveDevelopers = await prisma.developer.findMany({
     where: { active: false },
     select: { id: true },
   });
+  if (signal?.aborted) {
+    throw Object.assign(new Error("aborted"), { name: "AbortError" });
+  }
   const inactiveDeveloperIds = inactiveDevelopers.map(({ id }: { id: number }) => id);
   const inactiveSet = new Set(inactiveDeveloperIds);
 
-  const response = await postarParaIA<unknown>("/developers/recommend", {
-    pbi_id: input.pbiId ?? null,
-    title: input.title,
-    user_story: input.userStory,
-    acceptance_criteria: input.acceptanceCriteria,
-    limit: input.limit,
-    inactive_developer_ids: inactiveDeveloperIds,
-  });
+  const response = await postarParaIA<unknown>(
+    "/developers/recommend",
+    {
+      pbi_id: input.pbiId ?? null,
+      title: input.title,
+      user_story: input.userStory,
+      acceptance_criteria: input.acceptanceCriteria,
+      limit: input.limit,
+      inactive_developer_ids: inactiveDeveloperIds,
+    },
+    signal,
+  );
 
   const parsedResponse = developerRecommendationAiResponseSchema.safeParse(response);
   if (!parsedResponse.success) {

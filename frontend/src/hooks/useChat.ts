@@ -7,6 +7,8 @@ export interface MensagemExibida extends MensagemChat {
   id: number;
   /** Pergunta que não obteve resposta (não entra no histórico enviado). */
   falhou?: boolean;
+  /** Mensagem de uma interação cancelada pelo usuário (não entra no histórico enviado). */
+  cancelada?: boolean;
   createdAt?: string;
 }
 
@@ -27,6 +29,7 @@ export function useChat(enviar: EnviarMensagemChat) {
   const mensagensRef = useRef<MensagemExibida[]>([]);
   const proximoId = useRef(1);
   const controlador = useRef<AbortController | null>(null);
+  const idPerguntaAtivaRef = useRef<number | null>(null);
   const enviosCustomizadosRef = useRef<Map<number, EnviarMensagemChat>>(new Map());
 
   const atualizar = useCallback((proximas: MensagemExibida[]) => {
@@ -40,12 +43,13 @@ export function useChat(enviar: EnviarMensagemChat) {
   const perguntar = useCallback(
     async (pergunta: string, base: MensagemExibida[], idPergunta: number) => {
       const historico: MensagemChat[] = base
-        .filter((m) => !m.falhou && m.id !== idPergunta)
+        .filter((m) => !m.falhou && !m.cancelada && m.id !== idPergunta)
         .slice(-MAX_HISTORICO)
         .map(({ role, content }) => ({ role, content }));
 
       const ctrl = new AbortController();
       controlador.current = ctrl;
+      idPerguntaAtivaRef.current = idPergunta;
 
       setEnviando(true);
       setErro(null);
@@ -101,6 +105,7 @@ export function useChat(enviar: EnviarMensagemChat) {
       } finally {
         if (controlador.current === ctrl) {
           controlador.current = null;
+          idPerguntaAtivaRef.current = null;
           parar();
           setEnviando(false);
         }
@@ -145,9 +150,38 @@ export function useChat(enviar: EnviarMensagemChat) {
     }
   }, [perguntar]);
 
+  const cancelar = useCallback(() => {
+    const ctrl = controlador.current;
+    if (!ctrl) return;
+
+    const idPergunta = idPerguntaAtivaRef.current;
+    controlador.current = null;
+    idPerguntaAtivaRef.current = null;
+    ctrl.abort();
+    parar();
+    setEnviando(false);
+
+    if (idPergunta !== null) {
+      enviosCustomizadosRef.current.delete(idPergunta);
+      atualizar([
+        ...mensagensRef.current.map((m) =>
+          m.id === idPergunta ? { ...m, cancelada: true } : m,
+        ),
+        {
+          id: proximoId.current++,
+          role: 'assistant',
+          content: '*Resposta cancelada pelo usuário.*',
+          cancelada: true,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    }
+  }, [atualizar, parar]);
+
   const limpar = useCallback(() => {
     controlador.current?.abort();
     controlador.current = null;
+    idPerguntaAtivaRef.current = null;
     enviosCustomizadosRef.current.clear();
     parar();
     setEnviando(false);
@@ -161,6 +195,7 @@ export function useChat(enviar: EnviarMensagemChat) {
     segundos,
     erro,
     enviarMensagem,
+    cancelar,
     tentarNovamente,
     limpar,
   };

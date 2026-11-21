@@ -1,12 +1,36 @@
 import http from "node:http";
 import https from "node:https";
 import dns from "node:dns";
+import type { Request, Response } from "express";
 
 dns.setDefaultResultOrder("ipv4first");
 
 export const AI_URL = (process.env.AI_URL || "http://localhost:8000").replace(/\/$/, "");
 // Qwen and LightRAG may spend several minutes processing a request.
 export const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 1520000;
+
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+export function criarControladorRequisicao(req: Request, res: Response): AbortController {
+  const ctrl = new AbortController();
+  const abortar = () => {
+    if (!ctrl.signal.aborted) {
+      ctrl.abort();
+    }
+  };
+
+  req.on("aborted", abortar);
+  res.on("close", () => {
+    req.off("aborted", abortar);
+    if (!res.writableEnded) {
+      abortar();
+    }
+  });
+
+  return ctrl;
+}
 
 /**
  * Use node:http(s) because fetch's default headers timeout is shorter than a
@@ -16,8 +40,13 @@ export function postJson(
   url: string,
   body: unknown,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<{ status: number; data: unknown }> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      return reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    }
+
     const alvo = new URL(url);
     const payload = JSON.stringify(body);
     const cliente = alvo.protocol === "https:" ? https : http;
@@ -48,6 +77,12 @@ export function postJson(
       },
     );
 
+    const onAbort = () => {
+      req.destroy(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    req.on("close", () => signal?.removeEventListener("abort", onAbort));
     req.on("timeout", () => req.destroy(Object.assign(new Error("timeout"), { name: "TimeoutError" })));
     req.on("error", reject);
     req.write(payload);

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { generalChatBodySchema } from "../schemas/general-chat.schema";
+import { criarControladorRequisicao, isAbortError } from "../services/ai-http.service";
 import {
   getConversationById,
   getRecentConversationHistory,
@@ -20,12 +21,7 @@ export async function chatGeralController(req: Request, res: Response) {
   }
 
   const { question, history, conversationId } = body.data;
-  const ctrl = new AbortController();
-  res.on("close", () => {
-    if (!res.writableEnded) {
-      ctrl.abort();
-    }
-  });
+  const ctrl = criarControladorRequisicao(req, res);
 
   try {
     if (conversationId) {
@@ -33,13 +29,18 @@ export async function chatGeralController(req: Request, res: Response) {
       if (!conversa) {
         return res.status(404).json({ message: "Conversa não encontrada." });
       }
+      if (ctrl.signal.aborted) return;
 
       const historicoDaConversa = await getRecentConversationHistory(conversationId);
+      if (ctrl.signal.aborted) return;
+
       const resultado = await perguntarChatGeral(
         question,
         historicoDaConversa,
         ctrl.signal,
       );
+      if (ctrl.signal.aborted) return;
+
       const conversaAtualizada = await saveConversationTurn(
         conversationId,
         question,
@@ -58,13 +59,15 @@ export async function chatGeralController(req: Request, res: Response) {
 
     const userCreatedAt = new Date().toISOString();
     const resultado = await perguntarChatGeral(question, history, ctrl.signal);
+    if (ctrl.signal.aborted) return;
+
     return res.status(200).json({
       ...resultado,
       userCreatedAt,
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
+    if (isAbortError(error) || ctrl.signal.aborted) {
       return;
     }
     if (error instanceof GeneralChatServiceError) {
