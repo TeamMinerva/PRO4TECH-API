@@ -207,9 +207,6 @@ function notifyUnauthorized(): void {
 
 export function logout(): void {
   clearSession();
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
-  }
 }
 
 export async function verifySessionWithServer(): Promise<User | null> {

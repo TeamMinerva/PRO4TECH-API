@@ -27,7 +27,13 @@ export function PrivateRoute({ children }: RouteGuardProps) {
   useEffect(() => {
     const handleUnauthorized = () => {
       setAutenticado(false);
-      navigate("/", { replace: true, state: { from: location } });
+      navigate("/", {
+        replace: true,
+        state: {
+          from: location,
+          authError: "Faça login para acessar esta página.",
+        },
+      });
     };
 
     const handleStorage = (event: StorageEvent) => {
@@ -48,7 +54,16 @@ export function PrivateRoute({ children }: RouteGuardProps) {
   }, [location, navigate]);
 
   if (!sessaoValida) {
-    return <Navigate to="/" replace state={{ from: location }} />;
+    return (
+      <Navigate
+        to="/"
+        replace
+        state={{
+          from: location,
+          authError: "Faça login para acessar esta página.",
+        }}
+      />
+    );
   }
 
   return children ? <>{children}</> : <Outlet />;
