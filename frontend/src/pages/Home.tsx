@@ -87,14 +87,39 @@ export default function Home() {
     enviar(mensagem);
   }
 
-  function abrirFonte(fonte: FonteChat) {
-    if (fonte.type === "project" && fonte.entity_id) {
-      navigate(`/projetos/${fonte.entity_id}`);
-      return;
+  function extrairIdFonte(fonte: FonteChat, prefixo: string): number | null {
+    if (
+      typeof fonte.entity_id === "number" &&
+      Number.isInteger(fonte.entity_id) &&
+      fonte.entity_id > 0
+    ) {
+      return fonte.entity_id;
+    }
+    if (typeof fonte.id === "string" && fonte.id.startsWith(prefixo)) {
+      const id = Number(fonte.id.slice(prefixo.length));
+      if (Number.isInteger(id) && id > 0) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  function rotaDaFonte(fonte: FonteChat): string | null {
+    if (fonte.type === "project") {
+      const id = extrairIdFonte(fonte, "projeto_");
+      return id ? `/projetos/${id}` : null;
     }
     if (fonte.type === "developer") {
-      navigate("/desenvolvedores");
-      return;
+      const id = extrairIdFonte(fonte, "dev_");
+      return id ? `/desenvolvedores/${id}` : null;
+    }
+    return null;
+  }
+
+  function abrirFonte(fonte: FonteChat) {
+    const rota = rotaDaFonte(fonte);
+    if (rota) {
+      navigate(rota);
     }
   }
 
@@ -373,9 +398,7 @@ export default function Home() {
                               Contexto utilizado:
                             </span>
                             {msg.fontes.map((fonte) => {
-                              const clicavel =
-                                (fonte.type === "project" && !!fonte.entity_id) ||
-                                fonte.type === "developer";
+                              const clicavel = Boolean(rotaDaFonte(fonte));
                               return (
                                 <button
                                   key={fonte.id}
@@ -519,9 +542,7 @@ export default function Home() {
               style={{ fontFamily: "Poppins, sans-serif" }}
             >
               {fontes.map((fonte) => {
-                const clicavel =
-                  (fonte.type === "project" && !!fonte.entity_id) ||
-                  fonte.type === "developer";
+                const clicavel = Boolean(rotaDaFonte(fonte));
                 return (
                   <button
                     key={fonte.id}
