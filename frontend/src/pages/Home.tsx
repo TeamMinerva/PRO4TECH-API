@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { History, Link2, X, ArrowUp, Pencil, Trash2, Check } from "lucide-react";
+import { History, Link2, LogOut, X, ArrowUp, Pencil, Trash2, Check } from "lucide-react";
+import { logout } from "../services/authService";
 import { useGeneralChat } from "../hooks/useGeneralChat";
 import { BotaoCancelarChat } from "../components/BotaoCancelarChat";
 import { MensagemMarkdown } from "../components/MensagemMarkdown";
@@ -101,6 +102,11 @@ export default function Home() {
     if (tipo === "project") return "Projeto";
     if (tipo === "developer") return "Desenvolvedor";
     return "Documento";
+  }
+
+  function handleLogout() {
+    logout();
+    navigate("/", { replace: true });
   }
 
   const vazio = mensagens.length === 0 && !carregandoConversa && !erro;
@@ -284,26 +290,35 @@ export default function Home() {
             ))}
           </nav>
 
-          {linksAberto ? (
-            <div className="size-[22px] shrink-0 sm:size-6" />
-          ) : (
+          <div className="flex items-center gap-3 shrink-0">
+            {!linksAberto && (
+              <button
+                type="button"
+                onClick={() => setLinksAberto(true)}
+                aria-label="Links de referência"
+                className="relative shrink-0 text-[#5a5f5f] transition-colors hover:text-white"
+              >
+                <Link2 size={22} strokeWidth={1.5} className="sm:size-6" />
+                {fontes.length > 0 && (
+                  <span
+                    aria-label={`${fontes.length} fontes utilizadas`}
+                    className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#ED6A32] text-[10px] font-medium text-white"
+                  >
+                    {fontes.length}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setLinksAberto(true)}
-              aria-label="Links de referência"
-              className="relative shrink-0 text-[#5a5f5f] transition-colors hover:text-white"
+              onClick={handleLogout}
+              aria-label="Sair"
+              title="Sair"
+              className="shrink-0 text-[#5a5f5f] transition-colors hover:text-[#ED6A32]"
             >
-              <Link2 size={22} strokeWidth={1.5} className="sm:size-6" />
-              {fontes.length > 0 && (
-                <span
-                  aria-label={`${fontes.length} fontes utilizadas`}
-                  className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#ED6A32] text-[10px] font-medium text-white"
-                >
-                  {fontes.length}
-                </span>
-              )}
+              <LogOut size={20} strokeWidth={1.5} className="sm:size-[22px]" />
             </button>
-          )}
+          </div>
         </header>
 
         <main

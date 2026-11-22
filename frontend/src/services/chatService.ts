@@ -1,4 +1,4 @@
-import { getSession } from './authService';
+import { API_URL, authFetch } from './authService';
 import type { RascunhoProjeto } from './rascunhoProjeto';
 
 export interface MensagemChat {
@@ -24,8 +24,6 @@ export type EnviarMensagemChat = (
   signal?: AbortSignal,
 ) => Promise<string | RespostaChat>;
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 export const PERGUNTA_ANALISAR_PROJETO = 'Analisar projeto';
 
 async function postarJson<TResponse>(
@@ -33,15 +31,12 @@ async function postarJson<TResponse>(
   payload: object,
   signal?: AbortSignal,
 ): Promise<TResponse> {
-  const { token } = getSession();
-
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await authFetch(`${API_URL}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(payload),
       signal,

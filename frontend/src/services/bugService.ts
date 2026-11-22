@@ -1,3 +1,5 @@
+import { API_URL, authFetch } from './authService';
+
 export interface CreateBugDTO {
   title: string;
   description: string;
@@ -6,10 +8,8 @@ export interface CreateBugDTO {
   developerId: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 export async function createBug(data: CreateBugDTO): Promise<void> {
-  const response = await fetch(`${API_URL}/api/bugs`, {
+  const response = await authFetch(`${API_URL}/api/bugs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

@@ -9,13 +9,7 @@ import { authMiddleware } from "../middlewares/auth.middleware";
 const router = Router();
 
 export function azureDevOpsAuthGuard(req: Request, res: Response, next: NextFunction) {
-  if (
-    process.env.AZURE_DEVOPS_REQUIRE_AUTH === "true" ||
-    Boolean(req.headers.authorization)
-  ) {
-    return authMiddleware(req, res, next);
-  }
-  return next();
+  return authMiddleware(req, res, next);
 }
 
 router.use(azureDevOpsAuthGuard);

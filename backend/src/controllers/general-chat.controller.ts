@@ -12,6 +12,10 @@ import {
 } from "../services/general-chat.service";
 
 export async function chatGeralController(req: Request, res: Response) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: "Usuário não autenticado." });
+  }
+
   const body = generalChatBodySchema.safeParse(req.body);
   if (!body.success) {
     return res.status(400).json({
@@ -28,6 +32,9 @@ export async function chatGeralController(req: Request, res: Response) {
       const conversa = await getConversationById(conversationId);
       if (!conversa) {
         return res.status(404).json({ message: "Conversa não encontrada." });
+      }
+      if (conversa.userId !== req.user.id) {
+        return res.status(403).json({ message: "Acesso negado a esta conversa." });
       }
       if (ctrl.signal.aborted) return;
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { API_URL, authFetch } from '../services/authService';
 import { getProjectById, updateProject, type ProjetoDetalhes } from '../services/projectService';
 
 export interface PBI {
@@ -364,7 +365,7 @@ export function useProjeto(projetoId?: string) {
         return Number(projetoId);
       }
 
-      const resposta = await fetch('http://localhost:3000/api/projects', {
+      const resposta = await authFetch(`${API_URL}/api/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(montarPayload(projeto)),

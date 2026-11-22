@@ -1,4 +1,6 @@
+import { LogOut } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { logout } from "../services/authService";
 import GaleriaDesenvolvedor from "./GaleriaDesenvolvedor";
 import GaleriaProjeto from "./GaleriaProjeto";
 
@@ -15,10 +17,16 @@ function Galeria() {
   const { pathname } = useLocation();
   const abaAtiva: Aba = pathname === "/desenvolvedores" ? "desenvolvedores" : "projetos";
 
+  function handleLogout() {
+    logout();
+    navigate("/", { replace: true });
+  }
+
   return (
     <main className="min-h-screen bg-[#191b1c] text-white">
       <section className="relative min-h-screen overflow-hidden bg-[#191b1c] p-6 lg:py-10 lg:pl-[50px] lg:pr-[50px]">
-        <div className="mx-auto flex w-full max-w-[960px] justify-center">
+        <div className="mx-auto flex w-full max-w-[960px] items-center justify-between gap-4">
+          <div className="size-[20px] shrink-0 sm:size-[22px]" aria-hidden="true" />
           <nav className="flex items-center rounded-[12px] border border-[#2d2d2d] sm:rounded-[15px]">
             {ABAS.map(({ id, label, path }) => (
               <button
@@ -36,6 +44,15 @@ function Galeria() {
               </button>
             ))}
           </nav>
+          <button
+            type="button"
+            onClick={handleLogout}
+            aria-label="Sair"
+            title="Sair"
+            className="shrink-0 text-[#5a5f5f] transition-colors hover:text-[#ED6A32]"
+          >
+            <LogOut size={20} strokeWidth={1.5} className="sm:size-[22px]" />
+          </button>
         </div>
 
         <div className="absolute left-[7.5%] right-[7.5%] top-[25%]">

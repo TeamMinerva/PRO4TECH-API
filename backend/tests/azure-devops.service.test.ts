@@ -300,29 +300,43 @@ test("Azure DevOps integration service and Express endpoints", async (t) => {
 
     await t.test("maps Azure DevOps HTTP errors (401, 403, 404, 400, 503) via Express endpoints", async () => {
       resetEnv();
+      const authHeaders = {
+        Authorization: `Bearer ${jwt.sign(
+          { id: 1, email: "dev@pro4tech.com" },
+          process.env.JWT_SECRET!,
+        )}`,
+      };
 
-      // 401 Unauthorized
+      // 401 Unauthorized (upstream Azure DevOps)
       mockStatus = 401;
-      let res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`);
+      let res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`, {
+        headers: authHeaders,
+      });
       assert.equal(res.status, 401);
 
       // 203 Non-Authoritative Information / HTML sign-in page (invalid PAT behavior in Azure DevOps)
       resetEnv();
       mockStatus = 203;
       mockContentType = "text/html; charset=utf-8";
-      res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`);
+      res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`, {
+        headers: authHeaders,
+      });
       assert.equal(res.status, 401);
 
       // 403 Forbidden
       resetEnv();
       mockStatus = 403;
-      res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`);
+      res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`, {
+        headers: authHeaders,
+      });
       assert.equal(res.status, 403);
 
       // 404 Not Found
       resetEnv();
       mockStatus = 404;
-      res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`);
+      res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`, {
+        headers: authHeaders,
+      });
       assert.equal(res.status, 404);
 
       // 400 Bad Request from upstream Azure DevOps API
@@ -334,7 +348,7 @@ test("Azure DevOps integration service and Express endpoints", async (t) => {
       };
       res = await fetch(`${apiBaseUrl}/api/azure-devops/work-items`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           type: "Task",
           title: "Task com estado inválido",
@@ -348,14 +362,16 @@ test("Azure DevOps integration service and Express endpoints", async (t) => {
       // 503 Service Unavailable on 500 upstream
       resetEnv();
       mockStatus = 500;
-      res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`);
+      res = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`, {
+        headers: authHeaders,
+      });
       assert.equal(res.status, 503);
 
       // 400 Bad Request on invalid request payload
       resetEnv();
       res = await fetch(`${apiBaseUrl}/api/azure-devops/work-items`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ type: "", title: "" }),
       });
       assert.equal(res.status, 400);
@@ -364,7 +380,7 @@ test("Azure DevOps integration service and Express endpoints", async (t) => {
       resetEnv();
       res = await fetch(`${apiBaseUrl}/api/azure-devops/work-items`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           type: "Feature",
           title: "Feature via Express",
@@ -378,12 +394,16 @@ test("Azure DevOps integration service and Express endpoints", async (t) => {
       assert.equal(body.workItem.parentId, 10);
     });
 
-    await t.test("validates JWT token when Authorization header is sent or AZURE_DEVOPS_REQUIRE_AUTH=true", async () => {
+    await t.test("always requires valid JWT token on Azure DevOps endpoints", async () => {
       resetEnv();
-      process.env.AZURE_DEVOPS_REQUIRE_AUTH = "true";
 
       const unauthRes = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`);
       assert.equal(unauthRes.status, 401);
+
+      const invalidRes = await fetch(`${apiBaseUrl}/api/azure-devops/work-item-types`, {
+        headers: { Authorization: "Bearer invalid-token" },
+      });
+      assert.equal(invalidRes.status, 401);
 
       const validToken = jwt.sign(
         { id: 1, email: "dev@pro4tech.com" },

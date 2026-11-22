@@ -1,4 +1,4 @@
-import { getSession } from './authService';
+import { API_URL, authFetch } from './authService';
 import type { EpicoDetalhe } from './projectService';
 
 export type TipoItemBacklog = 'Epic' | 'Feature' | 'PBI';
@@ -40,8 +40,6 @@ export interface ContagemBacklog {
   total: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 export class ErroAzureBoards extends Error {
   readonly status: number;
   readonly details?: unknown;
@@ -73,15 +71,12 @@ export function contarBacklog(epicos: EpicoDetalhe[]): ContagemBacklog {
 export async function exportarBacklogProjeto(
   projectId: number,
 ): Promise<ResultadoExportacaoBacklog> {
-  const { token } = getSession();
-
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/api/projects/${projectId}/export/azure-devops`, {
+    response = await authFetch(`${API_URL}/api/projects/${projectId}/export/azure-devops`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
   } catch (err) {

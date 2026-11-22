@@ -1,3 +1,5 @@
+import { API_URL, authFetch } from './authService';
+
 export interface Desenvolvedor {
   id: number;
   name: string;
@@ -82,7 +84,12 @@ export interface ProjetoDetalhes {
   epics?: EpicoDetalhe[];
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export interface ProjetoResumo {
+  id: number;
+  name: string;
+  status: string;
+}
+
 const buscasEmAndamento = new Map<string, Promise<ProjetosSemelhantesResponse>>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -173,8 +180,18 @@ function limparErroCacheSemelhantes(projectId: number) {
   }
 }
 
+export async function getProjectsGallery(): Promise<ProjetoResumo[]> {
+  const response = await authFetch(`${API_URL}/api/projects-gallery`);
+
+  if (!response.ok) {
+    throw new Error('Erro ao buscar projetos.');
+  }
+
+  return response.json();
+}
+
 export async function getProjectById(id: number | string): Promise<ProjetoDetalhes> {
-  const response = await fetch(`${API_URL}/api/projects/${id}`);
+  const response = await authFetch(`${API_URL}/api/projects/${id}`);
 
   if (!response.ok) {
     let errorMsg = 'Erro ao buscar detalhes do projeto.';
@@ -210,7 +227,7 @@ export async function getSimilarProjects(
   if (existingRequest) return existingRequest;
 
   const request = (async () => {
-    const response = await fetch(`${API_URL}/api/projects/${projectId}/similar`);
+    const response = await authFetch(`${API_URL}/api/projects/${projectId}/similar`);
     if (!response.ok) {
       let errorMsg = 'Erro ao buscar projetos semelhantes.';
       try {
@@ -247,10 +264,31 @@ export async function getSimilarProjects(
   }
 }
 
+export async function createProject(payload: unknown): Promise<ProjetoDetalhes> {
+  const response = await authFetch(`${API_URL}/api/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Não foi possível salvar o projeto. Verifique os campos e tente novamente.';
+    try {
+      const errorData = await response.json();
+      if (errorData?.message) {
+        errorMsg = errorData.message;
+      }
+    } catch {
+      // Usa mensagem padrão
+    }
+    throw new Error(errorMsg);
+  }
+
+  return (await response.json()) as ProjetoDetalhes;
+}
+
 export async function updateProject(id: number | string, payload: unknown): Promise<ProjetoDetalhes> {
-
-
-  const response = await fetch(`${API_URL}/api/projects/${id}`, {
+  const response = await authFetch(`${API_URL}/api/projects/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
