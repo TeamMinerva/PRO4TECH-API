@@ -23,9 +23,13 @@ type Aba = 'bugs' | 'backlog';
 
 export default function DetalhesProjeto() {
   const { id } = useParams();
+  return <ConteudoDetalhesProjeto key={id ?? ''} id={id} />;
+}
+
+function ConteudoDetalhesProjeto({ id }: { id?: string }) {
   const navigate = useNavigate();
   const [projeto, setProjeto] = useState<ProjetoDetalhes | null>(null);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState(Boolean(id));
   const [erro, setErro] = useState<string | null>(null);
   const [chatAberto, setChatAberto] = useState(true);
   const [semelhantesAberto, setSemelhantesAberto] = useState(false);
@@ -41,21 +45,14 @@ export default function DetalhesProjeto() {
   const backlog = useBacklogEditavel();
   const { carregar: carregarBacklog } = backlog;
   const idAtualRef = useRef(id);
-  idAtualRef.current = id;
   // Chat restrito a este projeto; troca junto com o id da rota.
   const enviarChat = useMemo(() => criarEnviarChatProjeto(id ?? ''), [id]);
 
   useEffect(() => {
+    idAtualRef.current = id;
     if (!id) return;
 
     let ativo = true;
-    setCarregando(true);
-    setErro(null);
-    setSemelhantesAberto(false);
-    setStatusSemelhantes('ocioso');
-    setProjetoIdSemelhantes(null);
-    setProjetosSemelhantes([]);
-    setErroSemelhantes(null);
 
     getProjectById(id)
       .then((dados) => {

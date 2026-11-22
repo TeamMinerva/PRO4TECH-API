@@ -153,28 +153,28 @@ export function useProjeto(projetoId?: string) {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [camposMarcados, setCamposMarcados] = useState<Set<string>>(new Set());
 
-  const [carregando, setCarregando] = useState(Boolean(projetoId));
+  const [idCarregado, setIdCarregado] = useState<string | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const editando = Boolean(projetoId);
+  const carregando = Boolean(projetoId) && idCarregado !== projetoId;
 
   useEffect(() => {
     if (!projetoId) return;
 
     let ativo = true;
-    setCarregando(true);
-    setErroCarga(null);
 
     getProjectById(projetoId)
       .then((dados) => {
         if (ativo) {
           setProjeto(projetoDeDetalhes(dados));
-          setCarregando(false);
+          setErroCarga(null);
+          setIdCarregado(projetoId);
         }
       })
       .catch((err) => {
         if (ativo) {
           setErroCarga(err instanceof Error ? err.message : 'Erro ao buscar projeto.');
-          setCarregando(false);
+          setIdCarregado(projetoId);
         }
       });
 
@@ -187,15 +187,12 @@ export function useProjeto(projetoId?: string) {
   const erroDoCampo = (chave: string) => (camposMarcados.has(chave) ? erros[chave] : undefined);
   const temErrosVisiveis = Object.keys(erros).some((chave) => camposMarcados.has(chave));
 
-  useEffect(() => {
-    if (
-      feedback?.tipo === 'erro' &&
-      feedback.mensagem === 'Há campos obrigatórios não preenchidos.' &&
-      !temErrosVisiveis
-    ) {
-      setFeedback(null);
-    }
-  }, [feedback, temErrosVisiveis]);
+  const feedbackVisivel =
+    feedback?.tipo === 'erro' &&
+    feedback.mensagem === 'Há campos obrigatórios não preenchidos.' &&
+    !temErrosVisiveis
+      ? null
+      : feedback;
 
   const atualizarNome = (nome: string) => setProjeto((prev) => ({ ...prev, nome }));
 
@@ -408,8 +405,8 @@ export function useProjeto(projetoId?: string) {
     projeto,
     editando,
     carregando,
-    erroCarga,
-    feedback,
+    erroCarga: carregando ? null : erroCarga,
+    feedback: feedbackVisivel,
     erroDoCampo,
     temErrosVisiveis,
     atualizarNome,

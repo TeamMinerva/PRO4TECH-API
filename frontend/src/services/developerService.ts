@@ -101,6 +101,7 @@ async function request<T>(
 
     throw new Error(
       "Não foi possível conectar ao servidor. Verifique se o backend está funcionando.",
+      { cause: error },
     );
   }
 

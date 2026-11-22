@@ -53,9 +53,6 @@ function ConteudoDesenvolvedor({
   useEffect(() => {
     const controller = new AbortController();
 
-    setLoading(true);
-    setError("");
-
     getDeveloperById(developerId, controller.signal)
       .then(setDeveloper)
       .catch((err: unknown) => {
@@ -74,6 +71,12 @@ function ConteudoDesenvolvedor({
     return () => controller.abort();
   }, [developerId, reload]);
 
+  const recarregar = () => {
+    setLoading(true);
+    setError("");
+    setReload((value) => value + 1);
+  };
+
   if (!developer) {
     return (
       <main className="dev-page dev-feedback">
@@ -89,7 +92,7 @@ function ConteudoDesenvolvedor({
             <button
               type="button"
               className="dev-secondary"
-              onClick={() => setReload((value) => value + 1)}
+              onClick={recarregar}
             >
               Tentar novamente
             </button>
@@ -271,7 +274,7 @@ function ConteudoDesenvolvedor({
           onClose={() => setSelectedBug(undefined)}
           onSaved={() => {
             setSelectedBug(undefined);
-            setReload((value) => value + 1);
+            recarregar();
           }}
         />
       )}

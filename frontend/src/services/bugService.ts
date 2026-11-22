@@ -23,7 +23,7 @@ export async function createBug(data: CreateBugDTO): Promise<void> {
     const primeiroIssue = Array.isArray(corpo?.errors) ? corpo.errors[0]?.message : undefined;
     mensagem = primeiroIssue || corpo?.message || mensagem;
   } catch {
-    
+    // Mantém a mensagem padrão
   }
   throw new Error(mensagem);
 }
