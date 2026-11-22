@@ -1,6 +1,4 @@
 import { Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import { UserPayload } from "../@types/express";
 import {
   conversationParamsSchema,
   createConversationSchema,
@@ -8,31 +6,30 @@ import {
 } from "../schemas/conversation.schema";
 import * as conversationService from "../services/conversation.service";
 
-function extrairUserIdOpcional(req: Request): number | undefined {
-  if (req.user?.id) return req.user.id;
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return undefined;
-
-  const parts = authHeader.split(" ");
-  if (parts.length !== 2 || parts[0] !== "Bearer") return undefined;
-
-  const secret = process.env.JWT_SECRET;
-  if (!secret) return undefined;
-
-  try {
-    const decoded = jwt.verify(parts[1], secret) as UserPayload;
-    if (decoded && typeof decoded === "object" && typeof decoded.id === "number") {
-      return decoded.id;
-    }
-  } catch {
-    // Segue sem bloquear enquanto a autenticação na página não é obrigatória
+async function buscarConversaDoUsuario(
+  conversationId: number,
+  userId: number,
+  res: Response,
+) {
+  const conversa = await conversationService.getConversationById(conversationId);
+  if (!conversa) {
+    res.status(404).json({ message: "Conversa não encontrada." });
+    return null;
   }
 
-  return undefined;
+  if (conversa.userId !== userId) {
+    res.status(403).json({ message: "Acesso negado a esta conversa." });
+    return null;
+  }
+
+  return conversa;
 }
 
 export async function createConversationController(req: Request, res: Response) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: "Usuário não autenticado." });
+  }
+
   const body = createConversationSchema.safeParse(req.body ?? {});
   if (!body.success) {
     return res.status(400).json({
@@ -42,8 +39,13 @@ export async function createConversationController(req: Request, res: Response) 
   }
 
   try {
-    const userId = extrairUserIdOpcional(req);
-    const conversation = await conversationService.createConversation(userId, body.data.title);
+    const conversation = await conversationService.createConversation(
+      req.user.id,
+      body.data.title,
+    );
+    if (!conversation) {
+      return res.status(401).json({ message: "Usuário não encontrado." });
+    }
     return res.status(201).json(conversation);
   } catch (error) {
     console.error("Erro ao criar conversa:", error);
@@ -52,9 +54,12 @@ export async function createConversationController(req: Request, res: Response) 
 }
 
 export async function getConversationsController(req: Request, res: Response) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: "Usuário não autenticado." });
+  }
+
   try {
-    const userId = extrairUserIdOpcional(req);
-    const conversations = await conversationService.getUserConversations(userId);
+    const conversations = await conversationService.getUserConversations(req.user.id);
     return res.status(200).json(conversations);
   } catch (error) {
     console.error("Erro ao buscar conversas:", error);
@@ -63,6 +68,10 @@ export async function getConversationsController(req: Request, res: Response) {
 }
 
 export async function getMessagesController(req: Request, res: Response) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: "Usuário não autenticado." });
+  }
+
   const params = conversationParamsSchema.safeParse(req.params);
   if (!params.success) {
     return res.status(400).json({
@@ -71,10 +80,12 @@ export async function getMessagesController(req: Request, res: Response) {
   }
 
   try {
-    const conversa = await conversationService.getConversationById(params.data.id);
-    if (!conversa) {
-      return res.status(404).json({ message: "Conversa não encontrada." });
-    }
+    const conversa = await buscarConversaDoUsuario(
+      params.data.id,
+      req.user.id,
+      res,
+    );
+    if (!conversa) return;
 
     const messages = await conversationService.getConversationMessages(params.data.id);
     return res.status(200).json(messages);
@@ -85,6 +96,10 @@ export async function getMessagesController(req: Request, res: Response) {
 }
 
 export async function updateConversationController(req: Request, res: Response) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: "Usuário não autenticado." });
+  }
+
   const params = conversationParamsSchema.safeParse(req.params);
   if (!params.success) {
     return res.status(400).json({
@@ -101,10 +116,12 @@ export async function updateConversationController(req: Request, res: Response) 
   }
 
   try {
-    const conversa = await conversationService.getConversationById(params.data.id);
-    if (!conversa) {
-      return res.status(404).json({ message: "Conversa não encontrada." });
-    }
+    const conversa = await buscarConversaDoUsuario(
+      params.data.id,
+      req.user.id,
+      res,
+    );
+    if (!conversa) return;
 
     const atualizada = await conversationService.updateConversationTitle(
       params.data.id,
@@ -118,6 +135,10 @@ export async function updateConversationController(req: Request, res: Response) 
 }
 
 export async function deleteConversationController(req: Request, res: Response) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: "Usuário não autenticado." });
+  }
+
   const params = conversationParamsSchema.safeParse(req.params);
   if (!params.success) {
     return res.status(400).json({
@@ -126,10 +147,12 @@ export async function deleteConversationController(req: Request, res: Response) 
   }
 
   try {
-    const conversa = await conversationService.getConversationById(params.data.id);
-    if (!conversa) {
-      return res.status(404).json({ message: "Conversa não encontrada." });
-    }
+    const conversa = await buscarConversaDoUsuario(
+      params.data.id,
+      req.user.id,
+      res,
+    );
+    if (!conversa) return;
 
     await conversationService.deleteConversation(params.data.id);
     return res.status(204).send();

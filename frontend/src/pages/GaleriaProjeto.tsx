@@ -2,12 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FolderKanban } from "lucide-react";
 import { STATUS_OPCOES } from "../hooks/useProjeto";
+import { getProjectsGallery, type ProjetoResumo } from "../services/projectService";
 
-interface Projeto {
-  id: number;
-  name: string;
-  status: string;
-}
+type Projeto = ProjetoResumo;
 
 type Status = "carregando" | "erro" | "sucesso";
 
@@ -21,10 +18,8 @@ function GaleriaProjeto() {
       try {
         setStatus("carregando");
 
-        const response = await fetch("http://localhost:3000/api/projects-gallery");
-        if (!response.ok) throw new Error("Erro ao buscar projetos.");
-
-        setProjetos(await response.json());
+        const dados = await getProjectsGallery();
+        setProjetos(dados);
         setStatus("sucesso");
       } catch (error) {
         console.error("Erro ao carregar projetos:", error);

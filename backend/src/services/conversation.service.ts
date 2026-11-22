@@ -21,8 +21,12 @@ async function resolverUserIdValido(userId?: number): Promise<number | null> {
   return user ? user.id : null;
 }
 
-export async function createConversation(userId?: number, title?: string) {
+export async function createConversation(userId: number, title?: string) {
   const validUserId = await resolverUserIdValido(userId);
+  if (!validUserId) {
+    return null;
+  }
+
   return prisma.conversation.create({
     data: {
       userId: validUserId,
@@ -31,10 +35,9 @@ export async function createConversation(userId?: number, title?: string) {
   });
 }
 
-export async function getUserConversations(userId?: number) {
-  const validUserId = await resolverUserIdValido(userId);
+export async function getUserConversations(userId: number) {
   return prisma.conversation.findMany({
-    where: validUserId ? { userId: validUserId } : undefined,
+    where: { userId },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
   });
 }

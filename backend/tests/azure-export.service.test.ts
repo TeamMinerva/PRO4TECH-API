@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { test } from "node:test";
+import jwt from "jsonwebtoken";
 import app from "../src/app";
 import {
   clearWorkItemTypesCache,
@@ -152,7 +153,8 @@ test("Azure Boards Backlog Export Flow (12 Scenarios & Express Endpoints)", asyn
     process.env.AZURE_DEVOPS_PROJECT = "mock-proj";
     process.env.AZURE_DEVOPS_PAT = "mock-pat-secret";
     process.env.AZURE_DEVOPS_BASE_URL = `http://127.0.0.1:${azureAddress.port}`;
-    process.env.AZURE_DEVOPS_REQUIRE_AUTH = "false";
+    process.env.JWT_SECRET = "test-jwt-secret";
+    delete process.env.AZURE_DEVOPS_REQUIRE_AUTH;
     mockStatus = 200;
     mockContentType = "application/json";
     receivedRequests = [];
@@ -889,17 +891,28 @@ test("Azure Boards Backlog Export Flow (12 Scenarios & Express Endpoints)", asyn
     // -----------------------------------------------------------------------------------
     await t.test("Express Endpoints: POST /api/projects/:id/export/azure-devops e validações", async () => {
       resetEnvAndState();
+      const token = jwt.sign({ id: 1, email: "dev@pro4tech.com" }, process.env.JWT_SECRET!);
 
-      // Teste com id inválido (não inteiro positivo)
+      // Sem token deve retornar 401
+      const resUnauth = await fetch(`${apiBaseUrl}/api/projects/1/export/azure-devops`, {
+        method: "POST",
+      });
+      assert.equal(resUnauth.status, 401);
+
+      // Teste com id inválido (não inteiro positivo) autenticado
       const resInvalid = await fetch(`${apiBaseUrl}/api/projects/abc/export/azure-devops`, {
         method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
       });
       assert.equal(resInvalid.status, 400);
 
       // Teste rota alternativa em /api/azure-devops/projects/:projectId/export
       const resAltInvalid = await fetch(
         `${apiBaseUrl}/api/azure-devops/projects/abc/export`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       assert.equal(resAltInvalid.status, 400);
     });

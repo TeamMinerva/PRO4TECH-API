@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import re
+import unicodedata
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, TypedDict
@@ -581,6 +582,105 @@ def extrair_fonte_documento(doc_id: str, texto: str) -> dict[str, Any]:
     }
 
 
+def _normalizar_texto_busca(texto: str) -> str:
+    sem_acentos = "".join(
+        ch
+        for ch in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(ch) != "Mn"
+    )
+    return re.sub(r"\s+", " ", sem_acentos).strip().casefold()
+
+
+def _padrao_titulo(titulo_norm: str) -> re.Pattern[str]:
+    escapado = re.escape(titulo_norm)
+    inicio = r"(?<!\w)" if titulo_norm[0].isalnum() or titulo_norm[0] == "_" else ""
+    fim = r"(?!\w)" if titulo_norm[-1].isalnum() or titulo_norm[-1] == "_" else ""
+    return re.compile(f"{inicio}{escapado}{fim}")
+
+
+def identificar_fontes_mencionadas(
+    texto: str,
+    fontes_prioritarias: list[dict[str, Any]],
+    fontes_adicionais: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Retorna as fontes cujos títulos aparecem explicitamente em `texto`."""
+    prioritarias: list[dict[str, Any]] = []
+    ids_prioritarios: set[str] = set()
+    for f in fontes_prioritarias:
+        fid = str(f.get("id") or "")
+        if not fid or fid in ids_prioritarios:
+            continue
+        ids_prioritarios.add(fid)
+        prioritarias.append(f)
+
+    adicionais: list[dict[str, Any]] = []
+    ids_adicionais: set[str] = set()
+    for f in fontes_adicionais or []:
+        fid = str(f.get("id") or "")
+        if not fid or fid in ids_prioritarios or fid in ids_adicionais:
+            continue
+        ids_adicionais.add(fid)
+        adicionais.append(f)
+
+    texto_norm = _normalizar_texto_busca(texto)
+    if (not prioritarias and not adicionais) or not texto_norm:
+        return []
+
+    grupos_prioritarios: dict[str, list[str]] = {}
+    for f in prioritarias:
+        fid = str(f.get("id") or "")
+        titulo_norm = _normalizar_texto_busca(str(f.get("title") or ""))
+        if fid and titulo_norm:
+            grupos_prioritarios.setdefault(titulo_norm, []).append(fid)
+
+    grupos_adicionais: dict[str, list[str]] = {}
+    for f in adicionais:
+        fid = str(f.get("id") or "")
+        titulo_norm = _normalizar_texto_busca(str(f.get("title") or ""))
+        if fid and titulo_norm:
+            grupos_adicionais.setdefault(titulo_norm, []).append(fid)
+
+    todos_titulos = sorted(
+        set(grupos_prioritarios) | set(grupos_adicionais),
+        key=len,
+        reverse=True,
+    )
+
+    texto_restante = texto_norm
+    ids_mencionados: set[str] = set()
+    posicao_por_id: dict[str, int] = {}
+
+    for titulo_norm in todos_titulos:
+        padrao = _padrao_titulo(titulo_norm)
+        match = padrao.search(texto_restante)
+        if not match:
+            continue
+        ids_escolhidos = (
+            grupos_prioritarios.get(titulo_norm)
+            or grupos_adicionais.get(titulo_norm)
+            or []
+        )
+        for fid in ids_escolhidos:
+            ids_mencionados.add(fid)
+            posicao_por_id.setdefault(fid, match.start())
+        texto_restante = padrao.sub(
+            lambda m: " " * len(m.group(0)),
+            texto_restante,
+        )
+
+    selecionadas_prioritarias = [
+        f for f in prioritarias if str(f.get("id") or "") in ids_mencionados
+    ]
+    selecionadas_adicionais = sorted(
+        (f for f in adicionais if str(f.get("id") or "") in ids_mencionados),
+        key=lambda f: (
+            posicao_por_id.get(str(f.get("id") or ""), 0),
+            str(f.get("id") or ""),
+        ),
+    )
+    return [*selecionadas_prioritarias, *selecionadas_adicionais]
+
+
 def _extrair_chunks_list(status: Any) -> list[str]:
     if not status:
         return []
@@ -691,7 +791,8 @@ async def recuperar_contexto_geral(
     question: str,
     max_chars: int | None = None,
     top_k: int | None = None,
-) -> tuple[str, list[dict[str, Any]]]:
+    incluir_todas_fontes: bool = False,
+) -> tuple[str, list[dict[str, Any]]] | tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
     """Recupera o contexto da base de conhecimento completa e as fontes utilizadas."""
     max_chars = max_chars or settings.chat_context_max_chars
     top_k = top_k or settings.chat_context_top_k
@@ -760,7 +861,10 @@ async def recuperar_contexto_geral(
     if todos_chunks and total_chars_chunks <= max_chars:
         partes = [c["texto"] for c in todos_chunks]
         fontes = list(fontes_por_doc.values())
-        return "\n\n".join(partes), fontes
+        contexto = "\n\n".join(partes)
+        if incluir_todas_fontes:
+            return contexto, fontes, fontes
+        return contexto, fontes
 
     resumo_grafo, chunks_grafo_ids, chunks_grafo_raw = await _consultar_grafo_lightrag(
         rag, question, top_k=top_k
@@ -779,6 +883,8 @@ async def recuperar_contexto_geral(
                 fontes_por_doc[doc_id] = extrair_fonte_documento(doc_id, texto)
 
     if not todos_chunks and not resumo_grafo:
+        if incluir_todas_fontes:
+            return "", [], []
         return "", []
 
     # Base grande: ranqueia os chunks por similaridade vetorial + relevancia no grafo.
@@ -874,6 +980,19 @@ async def recuperar_contexto_geral(
         if resumo_grafo and usado + len(resumo_grafo) + 2 <= max_chars:
             blocos.append(resumo_grafo)
 
-        return "\n\n".join(blocos), fontes_selecionadas
+        contexto_final = "\n\n".join(blocos)
+        todas_fontes = list(fontes_por_doc.values())
+        for fonte in identificar_fontes_mencionadas(
+            contexto_final, fontes_selecionadas, todas_fontes
+        ):
+            if fonte["id"] not in ids_fontes:
+                fontes_selecionadas.append(fonte)
+                ids_fontes.add(fonte["id"])
 
+        if incluir_todas_fontes:
+            return contexto_final, fontes_selecionadas, todas_fontes
+        return contexto_final, fontes_selecionadas
+
+    if incluir_todas_fontes:
+        return resumo_grafo, [], []
     return resumo_grafo, []

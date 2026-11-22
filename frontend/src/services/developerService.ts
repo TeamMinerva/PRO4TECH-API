@@ -1,3 +1,4 @@
+import { API_URL, authFetch } from "./authService";
 import type { CreateBugDTO } from "./bugService";
 
 export interface Developer {
@@ -60,10 +61,6 @@ export interface DeveloperChatMessage {
   content: string;
 }
 
-const API_URL = (
-  import.meta.env.VITE_API_URL || "http://localhost:3000"
-).replace(/\/+$/, "");
-
 function errorMessage(
   body: ApiError | null,
   fallback: string,
@@ -90,7 +87,7 @@ async function request<T>(
   let response: Response;
 
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await authFetch(`${API_URL}${path}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -104,6 +101,7 @@ async function request<T>(
 
     throw new Error(
       "Não foi possível conectar ao servidor. Verifique se o backend está funcionando.",
+      { cause: error },
     );
   }
 

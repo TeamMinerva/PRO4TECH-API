@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { History, Link2, X, ArrowUp, Pencil, Trash2, Check } from "lucide-react";
+import { History, Link2, LogOut, X, ArrowUp, Pencil, Trash2, Check } from "lucide-react";
+import { logout } from "../services/authService";
 import { useGeneralChat } from "../hooks/useGeneralChat";
 import { BotaoCancelarChat } from "../components/BotaoCancelarChat";
 import { MensagemMarkdown } from "../components/MensagemMarkdown";
@@ -86,14 +87,39 @@ export default function Home() {
     enviar(mensagem);
   }
 
-  function abrirFonte(fonte: FonteChat) {
-    if (fonte.type === "project" && fonte.entity_id) {
-      navigate(`/projetos/${fonte.entity_id}`);
-      return;
+  function extrairIdFonte(fonte: FonteChat, prefixo: string): number | null {
+    if (
+      typeof fonte.entity_id === "number" &&
+      Number.isInteger(fonte.entity_id) &&
+      fonte.entity_id > 0
+    ) {
+      return fonte.entity_id;
+    }
+    if (typeof fonte.id === "string" && fonte.id.startsWith(prefixo)) {
+      const id = Number(fonte.id.slice(prefixo.length));
+      if (Number.isInteger(id) && id > 0) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  function rotaDaFonte(fonte: FonteChat): string | null {
+    if (fonte.type === "project") {
+      const id = extrairIdFonte(fonte, "projeto_");
+      return id ? `/projetos/${id}` : null;
     }
     if (fonte.type === "developer") {
-      navigate("/desenvolvedores");
-      return;
+      const id = extrairIdFonte(fonte, "dev_");
+      return id ? `/desenvolvedores/${id}` : null;
+    }
+    return null;
+  }
+
+  function abrirFonte(fonte: FonteChat) {
+    const rota = rotaDaFonte(fonte);
+    if (rota) {
+      navigate(rota);
     }
   }
 
@@ -101,6 +127,11 @@ export default function Home() {
     if (tipo === "project") return "Projeto";
     if (tipo === "developer") return "Desenvolvedor";
     return "Documento";
+  }
+
+  function handleLogout() {
+    logout();
+    navigate("/", { replace: true });
   }
 
   const vazio = mensagens.length === 0 && !carregandoConversa && !erro;
@@ -121,12 +152,23 @@ export default function Home() {
       >
         <div className="flex h-full w-[280px] flex-col sm:w-[320px]">
           <div className="flex items-center justify-between px-6 py-6">
-            <p
-              className="text-[20px] text-white"
-              style={{ fontFamily: "Outfit, sans-serif" }}
-            >
-              Histórico
-            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleLogout}
+                aria-label="Sair"
+                title="Sair"
+                className="shrink-0 text-[#5a5f5f] transition-colors hover:text-[#ED6A32]"
+              >
+                <LogOut size={20} strokeWidth={1.5} />
+              </button>
+              <p
+                className="text-[20px] text-white"
+                style={{ fontFamily: "Outfit, sans-serif" }}
+              >
+                Histórico
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => setHistoricoAberto(false)}
@@ -356,9 +398,7 @@ export default function Home() {
                               Contexto utilizado:
                             </span>
                             {msg.fontes.map((fonte) => {
-                              const clicavel =
-                                (fonte.type === "project" && !!fonte.entity_id) ||
-                                fonte.type === "developer";
+                              const clicavel = Boolean(rotaDaFonte(fonte));
                               return (
                                 <button
                                   key={fonte.id}
@@ -502,9 +542,7 @@ export default function Home() {
               style={{ fontFamily: "Poppins, sans-serif" }}
             >
               {fontes.map((fonte) => {
-                const clicavel =
-                  (fonte.type === "project" && !!fonte.entity_id) ||
-                  fonte.type === "developer";
+                const clicavel = Boolean(rotaDaFonte(fonte));
                 return (
                   <button
                     key={fonte.id}

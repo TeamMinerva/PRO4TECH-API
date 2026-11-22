@@ -1,13 +1,30 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { loginUser, saveSession } from "../services/authService";
 
+interface LoginLocationState {
+  authError?: string;
+  from?: unknown;
+}
+
 export default function Login() {
+  const location = useLocation();
   const navigate = useNavigate();
+  const locationState = location.state as LoginLocationState | null;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => {
+    if (locationState?.authError) return locationState.authError;
+    if (locationState?.from) return "Faça login para acessar esta página.";
+    return null;
+  });
+
+  useEffect(() => {
+    if (locationState?.authError || locationState?.from) {
+      window.history.replaceState({}, "");
+    }
+  }, [locationState]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
