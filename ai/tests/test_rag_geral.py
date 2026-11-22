@@ -123,3 +123,89 @@ async def test_base_grande_inclui_catalogo_resumido_de_todos_os_projetos(monkeyp
     assert "Portal Crédito" in ctx
     assert "Sistema Logística" in ctx
     assert [f["id"] for f in fontes] == ["projeto_1", "projeto_2", "projeto_3"]
+
+
+async def test_base_grande_inclui_desenvolvedores_citados_no_projeto_fora_do_top_k(monkeypatch):
+    montar_rag(
+        monkeypatch,
+        {
+            "projeto_3": [
+                "--- PROJETO: Portal de Análise de Crédito e Prevenção a Fraudes ---\n"
+                "O projeto 'Portal de Análise de Crédito e Prevenção a Fraudes' está no status DONE.\n"
+                "O desenvolvedor associado é 'Letícia Furtado'.\n"
+                "O desenvolvedor 'Caio César' trabalha no PBI 'Cache'.\n"
+                "O desenvolvedor 'Guilherme Rosa' trabalha no PBI 'Cache'.\n"
+                "O desenvolvedor 'Isaura Batista' trabalha no PBI 'Dupla Alçada'.",
+            ],
+            "dev_1": ["--- DESENVOLVEDOR: Letícia Furtado ---\n" + ("a" * 160)],
+            "dev_2": ["--- DESENVOLVEDOR: Isaura Batista ---\n" + ("b" * 160)],
+            "dev_4": ["--- DESENVOLVEDOR: Guilherme Rosa ---\n" + ("c" * 160)],
+            "dev_5": ["--- DESENVOLVEDOR: Caio César ---\n" + ("d" * 160)],
+            "dev_6": ["--- DESENVOLVEDOR: Wendy Mininel ---\n" + ("e" * 160)],
+        },
+        {
+            "projeto_3-c0": [1.0, 0.0],
+            "dev_1-c0": [0.95, 0.0],
+            "dev_2-c0": [0.1, 0.9],
+            "dev_4-c0": [0.1, 0.8],
+            "dev_5-c0": [0.1, 0.7],
+            "dev_6-c0": [0.0, 1.0],
+        },
+    )
+
+    async def fake_embedding(texts):
+        return np.array([[1.0, 0.0]])
+
+    monkeypatch.setattr(rag, "embedding_func", fake_embedding)
+
+    ctx, fontes = await rag.recuperar_contexto_geral(
+        "quais desenvolvedores trabalham no portal de análise de crédito?",
+        max_chars=900,
+        top_k=2,
+    )
+
+    assert "Portal de Análise de Crédito" in ctx
+    assert [f["id"] for f in fontes] == [
+        "projeto_3",
+        "dev_1",
+        "dev_5",
+        "dev_4",
+        "dev_2",
+    ]
+
+    resultado_com_todas = await rag.recuperar_contexto_geral(
+        "quais desenvolvedores trabalham no portal de análise de crédito?",
+        max_chars=900,
+        top_k=2,
+        incluir_todas_fontes=True,
+    )
+    assert len(resultado_com_todas) == 3
+    _, fontes_sel, todas = resultado_com_todas
+    assert [f["id"] for f in fontes_sel] == [
+        "projeto_3",
+        "dev_1",
+        "dev_5",
+        "dev_4",
+        "dev_2",
+    ]
+    assert "dev_6" in [f["id"] for f in todas]
+
+
+def test_identificar_fontes_mencionadas_limites_e_caracteres_especiais():
+    fontes = [
+        {"id": "dev_1", "type": "developer", "entity_id": 1, "title": "Ana"},
+        {"id": "dev_2", "type": "developer", "entity_id": 2, "title": "Saci"},
+        {"id": "projeto_1", "type": "project", "entity_id": 1, "title": "Projeto do Saci"},
+        {
+            "id": "projeto_5",
+            "type": "project",
+            "entity_id": 5,
+            "title": "Ambiente Virtual de Aprendizagem Corporativa (LMS)",
+        },
+    ]
+
+    encontradas = rag.identificar_fontes_mencionadas(
+        "O Portal de Análise usa o Projeto do Saci e o Ambiente Virtual de Aprendizagem Corporativa (LMS).",
+        fontes,
+    )
+    assert [f["id"] for f in encontradas] == ["projeto_1", "projeto_5"]
