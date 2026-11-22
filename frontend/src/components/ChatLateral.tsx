@@ -1,7 +1,9 @@
 import { ArrowUp, Trash2, X } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type FormEvent } from 'react';
 import { useChat } from '../hooks/useChat';
+import { BotaoCancelarChat } from './BotaoCancelarChat';
 import { MensagemMarkdown } from './MensagemMarkdown';
+import { formatarHorario } from '../utils/formatarHorario';
 import type { EnviarMensagemChat } from '../services/chatService';
 
 interface ChatLateralProps {
@@ -14,6 +16,13 @@ interface ChatLateralProps {
   mensagemBoasVindas?: string;
   /** Perguntas prontas exibidas enquanto a conversa está vazia. */
   sugestoes?: string[];
+  /** Avisa o pai quando a IA começa/termina de responder. */
+  onEnviandoChange?: (enviando: boolean) => void;
+}
+
+export interface ChatLateralHandle {
+  /** Envia uma pergunta como se o usuário a tivesse digitado. Retorna false se o chat estiver ocupado. */
+  enviarPergunta: (pergunta: string, enviarCustomizado?: EnviarMensagemChat) => boolean;
 }
 
 const TAMANHO_MAXIMO = 8000;
@@ -23,18 +32,38 @@ const TAMANHO_MAXIMO = 8000;
  * de `onEnviar`. Use `key` com o identificador do contexto para reiniciar a
  * conversa ao trocar de projeto/desenvolvedor/etc.
  */
-export function ChatLateral({
-  aberto,
-  onFechar,
-  onEnviar,
-  titulo = 'Chat',
-  placeholder = 'Digite uma mensagem.',
-  mensagemBoasVindas,
-  sugestoes = [],
-}: ChatLateralProps) {
-  const { mensagens, enviando, erro, enviarMensagem, tentarNovamente, limpar } = useChat(onEnviar);
+export const ChatLateral = forwardRef<ChatLateralHandle, ChatLateralProps>(function ChatLateral(
+  {
+    aberto,
+    onFechar,
+    onEnviar,
+    titulo = 'Chat',
+    placeholder = 'Digite uma mensagem.',
+    mensagemBoasVindas,
+    sugestoes = [],
+    onEnviandoChange,
+  },
+  ref,
+) {
+  const { mensagens, enviando, segundos, erro, enviarMensagem, cancelar, tentarNovamente, limpar } = useChat(onEnviar);
   const [texto, setTexto] = useState('');
   const fimDaLista = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    onEnviandoChange?.(enviando);
+  }, [enviando, onEnviandoChange]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      enviarPergunta: (pergunta: string, enviarCustomizado?: EnviarMensagemChat) => {
+        if (!pergunta.trim() || enviando) return false;
+        enviarMensagem(pergunta, enviarCustomizado);
+        return true;
+      },
+    }),
+    [enviando, enviarMensagem],
+  );
 
   useEffect(() => {
     fimDaLista.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -114,22 +143,35 @@ export function ChatLateral({
               </div>
             )}
 
-            {mensagens.map((mensagem) => (
-              <div
-                key={mensagem.id}
-                className={`max-w-[85%] break-words rounded-[14px] px-4 py-3 text-[14px] leading-relaxed text-white ${
-                  mensagem.role === 'user'
-                    ? 'self-end whitespace-pre-wrap bg-[#3f3f3f]'
-                    : 'min-w-0 self-start bg-[#2d2d2d]'
-                }`}
-              >
-                {mensagem.role === 'assistant' ? (
-                  <MensagemMarkdown conteudo={mensagem.content} />
-                ) : (
-                  mensagem.content
-                )}
-              </div>
-            ))}
+            {mensagens.map((mensagem) => {
+              const horario = formatarHorario(mensagem.createdAt);
+
+              return (
+                <div
+                  key={mensagem.id}
+                  className={`max-w-[85%] break-words rounded-[14px] px-4 py-3 text-[14px] leading-relaxed text-white ${
+                    mensagem.role === 'user'
+                      ? 'self-end whitespace-pre-wrap bg-[#3f3f3f]'
+                      : 'min-w-0 self-start bg-[#2d2d2d]'
+                  }`}
+                >
+                  {mensagem.role === 'assistant' ? (
+                    <MensagemMarkdown conteudo={mensagem.content} />
+                  ) : (
+                    mensagem.content
+                  )}
+                  {horario && (
+                    <span
+                      className={`mt-1 block text-[10px] text-[#8a8f8f] ${
+                        mensagem.role === 'user' ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      {horario}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
 
             {enviando && (
               <div
@@ -141,7 +183,7 @@ export function ChatLateral({
                   <span className="size-1.5 animate-pulse rounded-full bg-[#9a9fa0] [animation-delay:150ms]" />
                   <span className="size-1.5 animate-pulse rounded-full bg-[#9a9fa0] [animation-delay:300ms]" />
                 </span>
-                Pensando...
+                Pensando... {segundos}s
               </div>
             )}
 
@@ -180,18 +222,22 @@ export function ChatLateral({
             className="m-0 w-full border-0 bg-transparent p-0 text-[14px] text-white outline-none placeholder-[#3d3f40] disabled:opacity-60"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           />
-          <button
-            type="submit"
-            disabled={!podeEnviar}
-            aria-label="Enviar mensagem"
-            className={`flex size-[26px] shrink-0 items-center justify-center transition-colors ${
-              podeEnviar ? 'text-[#ED6A32] hover:text-[#ff8555]' : 'cursor-not-allowed text-[#3d3f40]'
-            }`}
-          >
-            <ArrowUp size={18} />
-          </button>
+          {enviando ? (
+            <BotaoCancelarChat onClick={cancelar} />
+          ) : (
+            <button
+              type="submit"
+              disabled={!podeEnviar}
+              aria-label="Enviar mensagem"
+              className={`flex size-[26px] shrink-0 items-center justify-center transition-colors ${
+                podeEnviar ? 'text-[#ED6A32] hover:text-[#ff8555]' : 'cursor-not-allowed text-[#3d3f40]'
+              }`}
+            >
+              <ArrowUp size={18} />
+            </button>
+          )}
         </form>
       </div>
     </aside>
   );
-}
+});

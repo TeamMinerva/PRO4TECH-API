@@ -1,8 +1,9 @@
-import { getSession } from './authService';
+import { API_URL, authFetch } from './authService';
 
 export interface MensagemChatGeral {
   role: 'user' | 'assistant';
   content: string;
+  createdAt?: string;
 }
 
 export interface FonteChat {
@@ -17,6 +18,8 @@ export interface RespostaChatGeral {
   sources: FonteChat[];
   conversationId?: number;
   conversationTitle?: string;
+  userCreatedAt?: string;
+  createdAt?: string;
 }
 
 export interface ConversaResumo {
@@ -34,20 +37,14 @@ export interface MensagemConversaSalva {
   createdAt?: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
-function montarHeaders(comJson = false): HeadersInit {
-  const { token } = getSession();
-  return {
-    ...(comJson ? { 'Content-Type': 'application/json' } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+function montarHeaders(comJson = false): HeadersInit | undefined {
+  return comJson ? { 'Content-Type': 'application/json' } : undefined;
 }
 
 export async function listarConversas(signal?: AbortSignal): Promise<ConversaResumo[]> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/api/conversations`, {
+    response = await authFetch(`${API_URL}/api/conversations`, {
       method: 'GET',
       headers: montarHeaders(),
       signal,
@@ -71,7 +68,7 @@ export async function criarConversa(
 ): Promise<ConversaResumo> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/api/conversations`, {
+    response = await authFetch(`${API_URL}/api/conversations`, {
       method: 'POST',
       headers: montarHeaders(true),
       body: JSON.stringify(titulo ? { title: titulo } : {}),
@@ -102,7 +99,7 @@ export async function buscarMensagensConversa(
 ): Promise<MensagemConversaSalva[]> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/api/conversations/${conversaId}/messages`, {
+    response = await authFetch(`${API_URL}/api/conversations/${conversaId}/messages`, {
       method: 'GET',
       headers: montarHeaders(),
       signal,
@@ -133,7 +130,7 @@ export async function renomearConversa(
 ): Promise<ConversaResumo> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/api/conversations/${conversaId}`, {
+    response = await authFetch(`${API_URL}/api/conversations/${conversaId}`, {
       method: 'PATCH',
       headers: montarHeaders(true),
       body: JSON.stringify({ title: titulo }),
@@ -159,7 +156,7 @@ export async function renomearConversa(
 export async function excluirConversa(conversaId: number): Promise<void> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/api/conversations/${conversaId}`, {
+    response = await authFetch(`${API_URL}/api/conversations/${conversaId}`, {
       method: 'DELETE',
       headers: montarHeaders(),
     });
@@ -187,7 +184,7 @@ export async function enviarChatGeral(
 ): Promise<RespostaChatGeral> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/api/chat/general`, {
+    response = await authFetch(`${API_URL}/api/chat/general`, {
       method: 'POST',
       headers: montarHeaders(true),
       body: JSON.stringify({
@@ -218,6 +215,8 @@ export async function enviarChatGeral(
     sources?: FonteChat[];
     conversationId?: number;
     conversationTitle?: string;
+    userCreatedAt?: string;
+    createdAt?: string;
   };
   if (!dados.answer) throw new Error('A IA retornou uma resposta vazia.');
   return {
@@ -225,5 +224,7 @@ export async function enviarChatGeral(
     sources: Array.isArray(dados.sources) ? dados.sources : [],
     conversationId: dados.conversationId,
     conversationTitle: dados.conversationTitle,
+    userCreatedAt: dados.userCreatedAt,
+    createdAt: dados.createdAt,
   };
 }

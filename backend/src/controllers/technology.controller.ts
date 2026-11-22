@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { Prisma } from "@prisma/client";
 
 import {
   createTechnologySchema,
@@ -8,13 +7,14 @@ import {
   updateTechnologySchema,
 } from "../schemas/technology.schema";
 import * as technologyService from "../services/technology.service";
+import { isPrismaError } from "../utils/prisma-error";
 
 function handleError(error: unknown, res: Response, action: string) {
   if (error instanceof technologyService.TechnologyNameConflictError) {
     return res.status(409).json({ message: error.message });
   }
 
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+  if (isPrismaError(error)) {
     if (error.code === "P2025") {
       return res.status(404).json({ message: "Tecnologia não encontrada." });
     }

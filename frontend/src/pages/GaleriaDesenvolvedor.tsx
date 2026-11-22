@@ -169,6 +169,11 @@ function ModalCadastroDesenvolvedor({
     e.preventDefault();
     setErro(null);
 
+    if (!nome.trim()) {
+      setErro("Informe o nome do desenvolvedor.");
+      return;
+    }
+
     if (ativo === null) {
       setErro("Selecione um status.");
       return;
@@ -183,7 +188,7 @@ function ModalCadastroDesenvolvedor({
 
     try {
       await createDeveloper({
-        name: nome,
+        name: nome.trim(),
         active: ativo,
         technologyIds: tecnologiaIds,
       });
@@ -220,6 +225,7 @@ function ModalCadastroDesenvolvedor({
     >
       <form
         onSubmit={handleSalvar}
+        noValidate
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-[400px] rounded-[14px] bg-[#141617] p-[24px]"
       >
@@ -333,7 +339,7 @@ function ModalCadastroDesenvolvedor({
             )}
           </div>
 
-          {erro && <p className="text-[12px] text-[#ff641f]">{erro}</p>}
+          {erro && <p role="alert" className="text-[12px] text-[#ff641f]">{erro}</p>}
 
           <div className="mt-[4px] flex items-center justify-end gap-[10px]">
             <button

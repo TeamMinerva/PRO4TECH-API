@@ -1,63 +1,5 @@
-import http from "node:http";
-import https from "node:https";
 import type { GeneralChatMessage } from "../schemas/general-chat.schema";
-
-const AI_URL = (process.env.AI_URL || "http://localhost:8000").replace(/\/$/, "");
-const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 1520000;
-
-function postJson(
-  url: string,
-  body: unknown,
-  timeoutMs: number,
-  signal?: AbortSignal,
-): Promise<{ status: number; data: unknown }> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      return reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
-    }
-
-    const alvo = new URL(url);
-    const payload = JSON.stringify(body);
-    const cliente = alvo.protocol === "https:" ? https : http;
-
-    const req = cliente.request(
-      alvo,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(payload),
-        },
-        timeout: timeoutMs,
-      },
-      (res) => {
-        const partes: Buffer[] = [];
-        res.on("data", (parte: Buffer) => partes.push(parte));
-        res.on("error", reject);
-        res.on("end", () => {
-          let data: unknown = null;
-          try {
-            data = JSON.parse(Buffer.concat(partes).toString("utf8"));
-          } catch {
-            // corpo não-JSON: mantém null
-          }
-          resolve({ status: res.statusCode ?? 0, data });
-        });
-      },
-    );
-
-    const onAbort = () => {
-      req.destroy(Object.assign(new Error("aborted"), { name: "AbortError" }));
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-
-    req.on("close", () => signal?.removeEventListener("abort", onAbort));
-    req.on("timeout", () => req.destroy(Object.assign(new Error("timeout"), { name: "TimeoutError" })));
-    req.on("error", reject);
-    req.write(payload);
-    req.end();
-  });
-}
+import { AI_TIMEOUT_MS, AI_URL, isAbortError, postJson } from "./ai-http.service";
 
 export class GeneralChatServiceError extends Error {
   constructor(
@@ -99,7 +41,7 @@ export async function perguntarChatGeral(
       signal,
     );
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
+    if (isAbortError(error)) {
       throw error;
     }
     if (error instanceof Error && error.name === "TimeoutError") {

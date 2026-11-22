@@ -22,14 +22,29 @@ export function authMiddleware(
   const token = parts[1];
   const secret = process.env.JWT_SECRET;
 
+  if (!token) {
+    return res.status(401).json({ message: "Token não fornecido." });
+  }
+
   if (!secret) {
-    throw new Error("JWT_SECRET não foi configurado nas variáveis de ambiente.");
+    console.error("JWT_SECRET não foi configurado nas variáveis de ambiente.");
+    return res.status(500).json({
+      message: "Erro de configuração de autenticação no servidor.",
+    });
   }
 
   try {
     const decoded = jwt.verify(token, secret) as UserPayload;
 
-    if (!decoded || typeof decoded !== "object" || !decoded.id || !decoded.email) {
+    if (
+      !decoded ||
+      typeof decoded !== "object" ||
+      typeof decoded.id !== "number" ||
+      !Number.isInteger(decoded.id) ||
+      decoded.id <= 0 ||
+      typeof decoded.email !== "string" ||
+      decoded.email.trim().length === 0
+    ) {
       return res.status(401).json({ message: "Token inválido ou expirado." });
     }
 
@@ -39,7 +54,7 @@ export function authMiddleware(
     };
 
     return next();
-  } catch (error) {
+  } catch {
     return res.status(401).json({ message: "Token inválido ou expirado." });
   }
 }

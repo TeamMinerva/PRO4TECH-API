@@ -1,10 +1,11 @@
-import { ArrowLeft, Bug, ListTodo, MessageSquare, Pencil, Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Bug, ListTodo, MessageSquare, Pencil, Plus, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BacklogEditavel } from '../components/BacklogEditavel';
 import { BotaoAba } from '../components/BotaoAba';
 import { ChatLateral } from '../components/ChatLateral';
 import { ModalCadastroBug } from '../components/ModalCadastroBug';
+import { ModalExportarAzure } from '../components/ModalExportarAzure';
 import { Expansivel } from '../components/Expansivel';
 import { TagRemovivel } from '../components/TagRemovivel';
 import { useBacklogEditavel } from '../hooks/useBacklogEditavel';
@@ -22,31 +23,36 @@ type Aba = 'bugs' | 'backlog';
 
 export default function DetalhesProjeto() {
   const { id } = useParams();
+  return <ConteudoDetalhesProjeto key={id ?? ''} id={id} />;
+}
+
+function ConteudoDetalhesProjeto({ id }: { id?: string }) {
   const navigate = useNavigate();
   const [projeto, setProjeto] = useState<ProjetoDetalhes | null>(null);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState(Boolean(id));
   const [erro, setErro] = useState<string | null>(null);
   const [chatAberto, setChatAberto] = useState(true);
-  const [semelhantesAberto, setSemelhantesAberto] = useState(true);
+  const [semelhantesAberto, setSemelhantesAberto] = useState(false);
   const [projetosSemelhantes, setProjetosSemelhantes] = useState<ProjetoSemelhanteIA[]>([]);
-  const [statusSemelhantes, setStatusSemelhantes] = useState<'carregando' | 'sucesso' | 'erro'>('carregando');
+  const [statusSemelhantes, setStatusSemelhantes] = useState<'ocioso' | 'carregando' | 'sucesso' | 'erro'>('ocioso');
   const [projetoIdSemelhantes, setProjetoIdSemelhantes] = useState<number | null>(null);
   const [erroSemelhantes, setErroSemelhantes] = useState<string | null>(null);
   const [equipeAberta, setEquipeAberta] = useState(false);
   const [aba, setAba] = useState<Aba>('bugs');
   const [modalBugAberto, setModalBugAberto] = useState(false);
+  const [modalAzureAberto, setModalAzureAberto] = useState(false);
   const devsDisponiveis = useDesenvolvedores();
   const backlog = useBacklogEditavel();
   const { carregar: carregarBacklog } = backlog;
+  const idAtualRef = useRef(id);
   // Chat restrito a este projeto; troca junto com o id da rota.
   const enviarChat = useMemo(() => criarEnviarChatProjeto(id ?? ''), [id]);
 
   useEffect(() => {
+    idAtualRef.current = id;
     if (!id) return;
 
     let ativo = true;
-    setCarregando(true);
-    setErro(null);
 
     getProjectById(id)
       .then((dados) => {
@@ -68,55 +74,42 @@ export default function DetalhesProjeto() {
     };
   }, [id, carregarBacklog]);
 
-  const projetoIdAtual = projeto?.id;
-  useEffect(() => {
+  const buscarSemelhantes = (forcarNovaBusca = false) => {
+    const projetoIdAtual = projeto?.id;
     if (!id || !projetoIdAtual || projetoIdAtual !== Number(id)) return;
+    if (!forcarNovaBusca && projetoIdSemelhantes === projetoIdAtual && (statusSemelhantes === 'carregando' || statusSemelhantes === 'sucesso')) {
+      return;
+    }
 
-    let ativo = true;
-    getSimilarProjects(id)
-      .then((response) => {
-        if (ativo) {
-          setProjetoIdSemelhantes(response.projectId);
-          setProjetosSemelhantes(response.similarProjects);
-          setStatusSemelhantes('sucesso');
-        }
-      })
-      .catch((error: unknown) => {
-        if (ativo) {
-          setProjetoIdSemelhantes(Number(id));
-          const message = error instanceof Error
-            ? error.message
-            : 'Não foi possível buscar projetos semelhantes.';
-          setErroSemelhantes(message);
-          setStatusSemelhantes('erro');
-        }
-      });
-
-    return () => {
-      ativo = false;
-    };
-  }, [id, projetoIdAtual]);
-
-  const tentarBuscarSemelhantesNovamente = () => {
-    if (!id) return;
-
-    setProjetoIdSemelhantes(Number(id));
+    const idBuscado = id;
+    setProjetoIdSemelhantes(projetoIdAtual);
     setStatusSemelhantes('carregando');
     setErroSemelhantes(null);
-    getSimilarProjects(id, true)
+
+    getSimilarProjects(idBuscado, forcarNovaBusca)
       .then((response) => {
+        if (idAtualRef.current !== idBuscado) return;
         setProjetoIdSemelhantes(response.projectId);
         setProjetosSemelhantes(response.similarProjects);
         setStatusSemelhantes('sucesso');
       })
       .catch((error: unknown) => {
-        setProjetoIdSemelhantes(Number(id));
+        if (idAtualRef.current !== idBuscado) return;
+        setProjetoIdSemelhantes(Number(idBuscado));
         const message = error instanceof Error
           ? error.message
           : 'Não foi possível buscar projetos semelhantes.';
         setErroSemelhantes(message);
         setStatusSemelhantes('erro');
       });
+  };
+
+  const alternarSemelhantes = () => {
+    const proximoAberto = !semelhantesAberto;
+    setSemelhantesAberto(proximoAberto);
+    if (proximoAberto) {
+      buscarSemelhantes(false);
+    }
   };
 
   // minmax(0, ...) impede que textos longos estourem as margens da tabela
@@ -129,7 +122,7 @@ export default function DetalhesProjeto() {
     : '';
   const statusSemelhantesAtual = projeto?.id === projetoIdSemelhantes
     ? statusSemelhantes
-    : 'carregando';
+    : 'ocioso';
   const resultadosSemelhantesAtuais = projeto?.id === projetoIdSemelhantes
     ? projetosSemelhantes
     : [];
@@ -198,23 +191,25 @@ export default function DetalhesProjeto() {
                 </div>
 
                 <Expansivel
-                  rotulo="Projetos semelhantes"
+                  rotulo="Buscar projetos semelhantes"
                   aberto={semelhantesAberto}
-                  onAlternar={() => setSemelhantesAberto(!semelhantesAberto)}
+                  onAlternar={alternarSemelhantes}
                   vazio={
                     statusSemelhantesAtual === 'sucesso'
                       ? 'Nenhum projeto semelhante encontrado.'
                       : ''
                   }
-                  itens={statusSemelhantesAtual === 'carregando'
-                    ? [<span key="carregando" className="text-base text-[#5a5f5f]">Buscando projetos semelhantes...</span>]
+                  itens={statusSemelhantesAtual === 'ocioso'
+                    ? []
+                    : statusSemelhantesAtual === 'carregando'
+                    ? [<span key="carregando" className="text-base text-[#5a5f5f]">Analisando projetos semelhantes na sua base de dados...</span>]
                     : statusSemelhantesAtual === 'erro'
                       ? [
                         <div key="erro" className="flex flex-wrap items-center gap-3">
                           <span className="text-base text-[#ED6A32]">{erroSemelhantes}</span>
                           <button
                             type="button"
-                            onClick={tentarBuscarSemelhantesNovamente}
+                            onClick={() => buscarSemelhantes(true)}
                             className="text-sm text-[#d6d6d6] underline hover:text-[#ED6A32]"
                           >
                             Tentar novamente
@@ -265,6 +260,17 @@ export default function DetalhesProjeto() {
                       Backlog
                     </BotaoAba>
                   </nav>
+
+                  {aba === 'backlog' && (
+                    <button
+                      type="button"
+                      onClick={() => setModalAzureAberto(true)}
+                      className="flex items-center gap-1.5 text-base text-[#ED6A32] hover:text-[#ff8555] transition-colors"
+                    >
+                      <Upload size={15} strokeWidth={2.25} />
+                      Exportar para Azure Boards
+                    </button>
+                  )}
 
                   {aba === 'bugs' && (
                     <button
@@ -335,6 +341,15 @@ export default function DetalhesProjeto() {
           'Quais são os épicos e as features?',
         ]}
       />
+
+      {modalAzureAberto && projeto && (
+        <ModalExportarAzure
+          projetoId={projeto.id}
+          projetoNome={projeto.name}
+          epicos={backlog.epicos}
+          onFechar={() => setModalAzureAberto(false)}
+        />
+      )}
 
       {modalBugAberto && projeto && (
         <ModalCadastroBug

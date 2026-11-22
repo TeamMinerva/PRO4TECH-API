@@ -18,7 +18,7 @@ function Galeria() {
   return (
     <main className="min-h-screen bg-[#191b1c] text-white">
       <section className="relative min-h-screen overflow-hidden bg-[#191b1c] p-6 lg:py-10 lg:pl-[50px] lg:pr-[50px]">
-        <div className="mx-auto flex w-full max-w-[960px] justify-center">
+        <div className="flex justify-center">
           <nav className="flex items-center rounded-[12px] border border-[#2d2d2d] sm:rounded-[15px]">
             {ABAS.map(({ id, label, path }) => (
               <button

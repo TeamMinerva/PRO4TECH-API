@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import { Prisma } from "@prisma/client";
 import { registerSchema, loginSchema } from "../schemas/auth.schema";
-import { registerUser, loginUser } from "../services/auth.service";
+import { registerUser, loginUser, findUserById } from "../services/auth.service";
+import { isPrismaError } from "../utils/prisma-error";
 
 export async function registerController(req: Request, res: Response) {
   const parseResult = registerSchema.safeParse(req.body);
@@ -24,7 +24,7 @@ export async function registerController(req: Request, res: Response) {
 
     return res.status(201).json(user);
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (isPrismaError(error)) {
       if (error.code === "P2002") {
         return res.status(409).json({
           message: "E-mail já cadastrado.",
@@ -75,6 +75,32 @@ export async function loginController(req: Request, res: Response) {
 
     return res.status(500).json({
       message: "Erro interno ao autenticar usuário.",
+    });
+  }
+}
+
+export async function meController(req: Request, res: Response) {
+  if (!req.user?.id) {
+    return res.status(401).json({
+      message: "Usuário não autenticado.",
+    });
+  }
+
+  try {
+    const user = await findUserById(req.user.id);
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Usuário não encontrado.",
+      });
+    }
+
+    return res.status(200).json(user);
+  } catch (error) {
+    console.error("Erro inesperado ao consultar usuário autenticado:", error);
+
+    return res.status(500).json({
+      message: "Erro interno ao verificar sessão.",
     });
   }
 }

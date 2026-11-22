@@ -21,8 +21,12 @@ async function resolverUserIdValido(userId?: number): Promise<number | null> {
   return user ? user.id : null;
 }
 
-export async function createConversation(userId?: number, title?: string) {
+export async function createConversation(userId: number, title?: string) {
   const validUserId = await resolverUserIdValido(userId);
+  if (!validUserId) {
+    return null;
+  }
+
   return prisma.conversation.create({
     data: {
       userId: validUserId,
@@ -31,10 +35,9 @@ export async function createConversation(userId?: number, title?: string) {
   });
 }
 
-export async function getUserConversations(userId?: number) {
-  const validUserId = await resolverUserIdValido(userId);
+export async function getUserConversations(userId: number) {
   return prisma.conversation.findMany({
-    where: validUserId ? { userId: validUserId } : undefined,
+    where: { userId },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
   });
 }
@@ -64,6 +67,14 @@ export async function getConversationMessages(conversationId: number) {
   return prisma.message.findMany({
     where: { conversationId },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      content: true,
+      role: true,
+      sources: true,
+      conversationId: true,
+      createdAt: true,
+    },
   });
 }
 
@@ -81,10 +92,12 @@ export async function getRecentConversationHistory(
     },
   });
 
-  return ultimas.reverse().map((m) => ({
-    role: m.role === "assistant" ? "assistant" : "user",
-    content: m.content,
-  }));
+  return ultimas
+    .reverse()
+    .map((m: { role: string; content: string }): GeneralChatMessage => ({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: m.content,
+    }));
 }
 
 export async function addMessage(
@@ -124,30 +137,35 @@ export async function saveConversationTurn(
       ? gerarTituloConversa(question)
       : conversaAtual?.title;
 
-  const [, , conversaAtualizada] = await prisma.$transaction([
-    prisma.message.create({
-      data: {
-        conversationId,
-        role: "user",
-        content: question,
-      },
-    }),
-    prisma.message.create({
-      data: {
-        conversationId,
-        role: "assistant",
-        content: answer,
-        sources: sources as unknown as Prisma.InputJsonValue,
-      },
-    }),
-    prisma.conversation.update({
-      where: { id: conversationId },
-      data: {
-        updatedAt: new Date(),
-        ...(novoTitulo ? { title: novoTitulo } : {}),
-      },
-    }),
-  ]);
+  const [mensagemUsuario, mensagemAssistente, conversaAtualizada] =
+    await prisma.$transaction([
+      prisma.message.create({
+        data: {
+          conversationId,
+          role: "user",
+          content: question,
+        },
+      }),
+      prisma.message.create({
+        data: {
+          conversationId,
+          role: "assistant",
+          content: answer,
+          sources: sources as unknown as Prisma.InputJsonValue,
+        },
+      }),
+      prisma.conversation.update({
+        where: { id: conversationId },
+        data: {
+          updatedAt: new Date(),
+          ...(novoTitulo ? { title: novoTitulo } : {}),
+        },
+      }),
+    ]);
 
-  return conversaAtualizada;
+  return {
+    ...conversaAtualizada,
+    userCreatedAt: mensagemUsuario.createdAt,
+    createdAt: mensagemAssistente.createdAt,
+  };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowUpRight, PanelRightOpen, Plus } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, MessageSquare, Plus } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import {
   getDeveloperById,
@@ -53,9 +53,6 @@ function ConteudoDesenvolvedor({
   useEffect(() => {
     const controller = new AbortController();
 
-    setLoading(true);
-    setError("");
-
     getDeveloperById(developerId, controller.signal)
       .then(setDeveloper)
       .catch((err: unknown) => {
@@ -74,6 +71,12 @@ function ConteudoDesenvolvedor({
     return () => controller.abort();
   }, [developerId, reload]);
 
+  const recarregar = () => {
+    setLoading(true);
+    setError("");
+    setReload((value) => value + 1);
+  };
+
   if (!developer) {
     return (
       <main className="dev-page dev-feedback">
@@ -89,7 +92,7 @@ function ConteudoDesenvolvedor({
             <button
               type="button"
               className="dev-secondary"
-              onClick={() => setReload((value) => value + 1)}
+              onClick={recarregar}
             >
               Tentar novamente
             </button>
@@ -100,8 +103,8 @@ function ConteudoDesenvolvedor({
   }
 
   return (
-    <main className={`dev-page dev-layout ${chatOpen ? "dev-layout--chat" : ""}`}>
-      <section className="dev-profile">
+    <main className="dev-page dev-layout">
+      <section className="dev-profile scrollbar-thin scrollbar-thumb-[#2d2d2d]">
         <div className="dev-topbar">
           <Link
             to="/desenvolvedores"
@@ -110,18 +113,6 @@ function ConteudoDesenvolvedor({
           >
             <ArrowLeft size={22} />
           </Link>
-
-          {!chatOpen && (
-            <button
-              type="button"
-              className="dev-icon"
-              onClick={() => setChatOpen(true)}
-              aria-label="Abrir chat"
-              title="Abrir chat"
-            >
-              <PanelRightOpen size={24} />
-            </button>
-          )}
         </div>
 
         <div className="dev-profile-content">
@@ -258,6 +249,17 @@ function ConteudoDesenvolvedor({
         </div>
       </section>
 
+      {!chatOpen && (
+        <button
+          type="button"
+          onClick={() => setChatOpen(true)}
+          aria-label="Abrir chat"
+          className="shrink-0 self-start text-[#5a5f5f] transition-colors hover:text-white"
+        >
+          <MessageSquare size={22} strokeWidth={1.5} />
+        </button>
+      )}
+
       <ChatDesenvolvedor
         developerId={developer.id}
         developerName={developer.name}
@@ -272,7 +274,7 @@ function ConteudoDesenvolvedor({
           onClose={() => setSelectedBug(undefined)}
           onSaved={() => {
             setSelectedBug(undefined);
-            setReload((value) => value + 1);
+            recarregar();
           }}
         />
       )}

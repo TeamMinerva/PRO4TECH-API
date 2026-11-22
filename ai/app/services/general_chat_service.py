@@ -18,43 +18,39 @@ def filtrar_fontes_utilizadas(
     fontes: list[dict[str, Any]],
     question: str,
     answer: str,
+    fontes_extras: list[dict[str, Any]] | None = None,
 ) -> list[ContextSource]:
     """Destaca as fontes efetivamente mencionadas na pergunta ou na resposta."""
-    if not fontes:
+    if not fontes and not fontes_extras:
         return []
 
-    texto_restante = f"{question}\n{answer}".casefold()
-    ids_mencionados: set[str] = set()
-
-    # Verifica primeiro os titulos mais longos para que um titulo curto contido
-    # em outro (ex.: dev "Saci" dentro de "Projeto do Saci") so entre se tambem
-    # aparecer fora do titulo maior.
-    ordenadas_por_tamanho = sorted(
+    escolhidas = rag.identificar_fontes_mencionadas(
+        f"{question}\n{answer}",
         fontes,
-        key=lambda f: len(str(f.get("title") or "").strip()),
-        reverse=True,
-    )
-    for f in ordenadas_por_tamanho:
-        titulo = str(f.get("title") or "").strip().casefold()
-        if titulo and titulo in texto_restante:
-            ids_mencionados.add(str(f.get("id")))
-            texto_restante = texto_restante.replace(titulo, " ")
-
-    escolhidas = [f for f in fontes if str(f.get("id")) in ids_mencionados] or fontes
+        fontes_extras,
+    ) or list(fontes)
     return [ContextSource(**f) for f in escolhidas]
 
 
 class GeneralChatService:
     async def responder(self, request: GeneralChatRequest) -> GeneralChatResponse:
-        resultado = await rag.recuperar_contexto_geral(question=request.question)
+        resultado = await rag.recuperar_contexto_geral(
+            question=request.question,
+            incluir_todas_fontes=True,
+        )
         if isinstance(resultado, tuple):
-            context, fontes_brutas = resultado
+            if len(resultado) == 3:
+                context, fontes_brutas, todas_fontes = resultado
+            else:
+                context, fontes_brutas = resultado
+                todas_fontes = fontes_brutas
         else:
-            context, fontes_brutas = resultado, []
+            context, fontes_brutas, todas_fontes = resultado, [], []
 
         if not context.strip():
             context = SEM_CONTEXTO
             fontes_brutas = []
+            todas_fontes = []
 
         messages = [
             {
@@ -69,7 +65,12 @@ class GeneralChatService:
         if not answer:
             raise RuntimeError("O modelo não retornou uma resposta válida.")
 
-        fontes = filtrar_fontes_utilizadas(fontes_brutas, request.question, answer)
+        fontes = filtrar_fontes_utilizadas(
+            fontes_brutas,
+            request.question,
+            answer,
+            fontes_extras=todas_fontes,
+        )
         return GeneralChatResponse(answer=answer, sources=fontes)
 
 

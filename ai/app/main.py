@@ -1,14 +1,20 @@
 import inspect
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from lightrag.kg.shared_storage import initialize_pipeline_status
 from pydantic import BaseModel, Field
 
 from app import ollama_client, rag
+from app.cancelamento import (
+    RequisicaoCanceladaPeloCliente,
+    executar_ate_desconectar,
+)
 from app.config import settings
 from app.routers.developer_chat import router as developer_chat_router
+from app.routers.draft_chat import router as draft_chat_router
 from app.routers.general_chat import router as general_chat_router
+from app.routers.developer_recommendation import router as developer_recommendation_router
 from app.routers.project_chat import router as project_chat_router
 from app.routers.similar_projects import router as similar_projects_router
 
@@ -42,7 +48,9 @@ app = FastAPI(
 
 app.include_router(developer_chat_router)
 app.include_router(project_chat_router)
+app.include_router(draft_chat_router)
 app.include_router(similar_projects_router)
+app.include_router(developer_recommendation_router)
 app.include_router(general_chat_router)
 
 class AskRequest(BaseModel):
@@ -77,9 +85,14 @@ async def health():
 
 
 @app.post("/ask", response_model=AskResponse)
-async def ask(body: AskRequest):
+async def ask(body: AskRequest, http_request: Request):
     try:
-        answer = await ollama_client.ask(body.question)
+        answer = await executar_ate_desconectar(
+            http_request,
+            ollama_client.ask(body.question),
+        )
+    except RequisicaoCanceladaPeloCliente:
+        return Response(status_code=499)
 
     except ollama_client.OllamaTimeout:
         raise HTTPException(
@@ -120,10 +133,16 @@ async def insert_knowledge(body: InsertRequest):
 
 
 @app.post("/knowledge/query", response_model=QueryResponse)
-async def query_knowledge(body: QueryRequest):
-    answer = await rag.query(
-        body.question,
-        mode=body.mode,
-    )
+async def query_knowledge(body: QueryRequest, http_request: Request):
+    try:
+        answer = await executar_ate_desconectar(
+            http_request,
+            rag.query(
+                body.question,
+                mode=body.mode,
+            ),
+        )
+    except RequisicaoCanceladaPeloCliente:
+        return Response(status_code=499)
 
     return QueryResponse(answer=answer)

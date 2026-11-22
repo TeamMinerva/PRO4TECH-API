@@ -129,3 +129,131 @@ async def test_chat_geral_timeout_e_indisponivel(client, monkeypatch):
 async def test_chat_geral_rag_nao_inicializado_retorna_500(client):
     resp = await client.post("/chat/general", json={"question": "x"})
     assert resp.status_code == 500
+
+
+async def test_executar_ate_desconectar_cancela_corrotina_quando_cliente_desconecta():
+    import asyncio
+    from types import SimpleNamespace
+
+    import pytest
+    from app.cancelamento import (
+        RequisicaoCanceladaPeloCliente,
+        executar_ate_desconectar,
+    )
+
+    evento_cancelada = asyncio.Event()
+    evento_iniciada = asyncio.Event()
+
+    async def tarefa_longa():
+        evento_iniciada.set()
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            evento_cancelada.set()
+            raise
+
+    async def receive():
+        await evento_iniciada.wait()
+        return {"type": "http.disconnect"}
+
+    fake_request = SimpleNamespace(
+        receive=receive,
+        url=SimpleNamespace(path="/chat/general"),
+    )
+
+    with pytest.raises(RequisicaoCanceladaPeloCliente):
+        await executar_ate_desconectar(fake_request, tarefa_longa())
+
+    assert evento_cancelada.is_set()
+
+
+async def test_chat_geral_inclui_todos_desenvolvedores_citados_na_resposta(client, monkeypatch):
+    todas = [
+        {
+            "id": "projeto_3",
+            "type": "project",
+            "entity_id": 3,
+            "title": "Portal de Análise de Crédito e Prevenção a Fraudes",
+        },
+        {"id": "dev_1", "type": "developer", "entity_id": 1, "title": "Letícia Furtado"},
+        {"id": "dev_2", "type": "developer", "entity_id": 2, "title": "Isaura Batista"},
+        {"id": "dev_4", "type": "developer", "entity_id": 4, "title": "Guilherme Rosa"},
+        {"id": "dev_5", "type": "developer", "entity_id": 5, "title": "Caio César"},
+        {"id": "dev_6", "type": "developer", "entity_id": 6, "title": "Wendy Mininel"},
+    ]
+
+    async def fake_contexto_geral(question, **kwargs):
+        return (
+            "--- PROJETO: Portal de Análise de Crédito e Prevenção a Fraudes ---",
+            [todas[0], todas[1]],
+            todas,
+        )
+
+    async def fake_chat(messages):
+        return (
+            "Os desenvolvedores que trabalham no projeto Portal de Análise de Crédito e Prevenção a Fraudes são:\n"
+            "1. Letícia Furtado\n"
+            "2. Caio César\n"
+            "3. Guilherme Rosa\n"
+            "4. Isaura Batista"
+        )
+
+    monkeypatch.setattr(rag, "recuperar_contexto_geral", fake_contexto_geral)
+    monkeypatch.setattr(ollama_client, "chat", fake_chat)
+
+    resp = await client.post(
+        "/chat/general",
+        json={"question": "e quais desenvolvedores trabalham nesse projeto?"},
+    )
+
+    assert resp.status_code == 200
+    assert [f["id"] for f in resp.json()["sources"]] == [
+        "projeto_3",
+        "dev_1",
+        "dev_5",
+        "dev_4",
+        "dev_2",
+    ]
+
+
+async def test_chat_geral_ignora_acentos_e_respeita_limites_de_palavra(client, monkeypatch):
+    todas = [
+        {"id": "dev_5", "type": "developer", "entity_id": 5, "title": "Caio César"},
+        {"id": "dev_9", "type": "developer", "entity_id": 9, "title": "Ana"},
+    ]
+
+    async def fake_contexto_geral(question, **kwargs):
+        return "ctx", [], todas
+
+    async def fake_chat(messages):
+        return "O Portal de Análise conta com Caio Cesar."
+
+    monkeypatch.setattr(rag, "recuperar_contexto_geral", fake_contexto_geral)
+    monkeypatch.setattr(ollama_client, "chat", fake_chat)
+
+    resp = await client.post("/chat/general", json={"question": "quem atua?"})
+    assert resp.status_code == 200
+    assert resp.json()["sources"] == [
+        {"id": "dev_5", "type": "developer", "entity_id": 5, "title": "Caio César"}
+    ]
+
+
+async def test_chat_geral_fallback_nao_vaza_fontes_extras_nao_citadas(client, monkeypatch):
+    brutas = [{"id": "projeto_1", "type": "project", "entity_id": 1, "title": "Alfa"}]
+    todas = [
+        *brutas,
+        {"id": "dev_6", "type": "developer", "entity_id": 6, "title": "Wendy Mininel"},
+    ]
+
+    async def fake_contexto_geral(question, **kwargs):
+        return "ctx", brutas, todas
+
+    async def fake_chat(messages):
+        return "Não há detalhes adicionais registrados."
+
+    monkeypatch.setattr(rag, "recuperar_contexto_geral", fake_contexto_geral)
+    monkeypatch.setattr(ollama_client, "chat", fake_chat)
+
+    resp = await client.post("/chat/general", json={"question": "tem mais algo?"})
+    assert resp.status_code == 200
+    assert resp.json()["sources"] == brutas

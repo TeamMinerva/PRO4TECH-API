@@ -1,6 +1,8 @@
+import asyncio
 import logging
 import os
 import re
+import unicodedata
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, TypedDict
@@ -48,6 +50,14 @@ async def embedding_func(texts: list[str]) -> np.ndarray:
 
 
 rag_instance: LightRAG | None = None
+_insert_lock: asyncio.Lock | None = None
+
+
+def _get_insert_lock() -> asyncio.Lock:
+    global _insert_lock
+    if _insert_lock is None:
+        _insert_lock = asyncio.Lock()
+    return _insert_lock
 
 
 def get_rag() -> LightRAG:
@@ -89,102 +99,136 @@ async def shutdown() -> None:
         rag_instance = None
 
 
-async def insert(text: str, doc_id: str | None = None) -> None:
-    rag_inst = get_rag()
-    if doc_id:
+async def _substituir_documento(rag_inst: LightRAG, doc_id: str) -> None:
+    max_tentativas = 4
+    deletion_status: str | None = None
+    for tentativa in range(1, max_tentativas + 1):
         deletion = await rag_inst.adelete_by_doc_id(doc_id)
         deletion_status = getattr(deletion, "status", None)
-        if deletion_status is not None and deletion_status not in {"success", "not_found"}:
-            raise RuntimeError(
-                f"Não foi possível substituir o documento {doc_id}: "
-                f"{deletion_status}."
-            )
-
-        if hasattr(rag_inst, "apipeline_enqueue_documents") and hasattr(
-            rag_inst, "apipeline_process_enqueue_documents"
-        ):
-            await rag_inst.apipeline_enqueue_documents(
-                text,
-                ids=[doc_id],
-                process_options="!",
-            )
-            await rag_inst.apipeline_process_enqueue_documents()
-        else:
-            await rag_inst.ainsert(text, ids=[doc_id])
-
-        status = await rag_inst.doc_status.get_by_id(doc_id)
-        if not status:
-            logger.error(
-                "event=lightrag_index_verification_failed document_id=%s reason=missing_status",
+        if deletion_status is None or deletion_status in {"success", "not_found"}:
+            return
+        if deletion_status == "not_allowed" and tentativa < max_tentativas:
+            logger.warning(
+                "event=lightrag_delete_retry document_id=%s status=%s attempt=%d",
                 doc_id,
+                deletion_status,
+                tentativa,
             )
-            raise RuntimeError(f"O documento {doc_id} não foi persistido no LightRAG.")
+            await asyncio.sleep(0.5 * tentativa)
+            continue
+        break
 
-        raw_status = status.get("status")
-        document_status = getattr(raw_status, "value", raw_status)
-        chunk_ids = list(status.get("chunks_list") or [])
-        if document_status != "processed" or not chunk_ids:
-            logger.error(
-                "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d track_id=%s",
-                doc_id,
-                document_status,
-                len(chunk_ids),
-                status.get("track_id"),
-            )
-            raise RuntimeError(
-                f"O documento {doc_id} não foi indexado completamente "
-                f"(status={document_status}, chunks={len(chunk_ids)})."
-            )
+    raise RuntimeError(
+        f"Não foi possível substituir o documento {doc_id}: "
+        f"{deletion_status}."
+    )
 
-        chunks = await rag_inst.text_chunks.get_by_ids(chunk_ids)
-        valid_chunks = [
-            chunk_id
-            for chunk_id, chunk in zip(chunk_ids, chunks)
-            if chunk and chunk.get("content", "").strip()
-        ]
-        vectors = await recuperar_vetores_chunks(doc_id, valid_chunks)
-        missing_vectors = set(valid_chunks) - set(vectors)
-        valid_vector_ids = set()
-        for chunk_id in valid_chunks:
-            if chunk_id not in vectors:
-                continue
-            try:
-                vector = np.asarray(vectors[chunk_id], dtype=float)
-            except (TypeError, ValueError):
-                continue
-            if (
-                vector.ndim == 1
-                and vector.size == settings.embedding_dim
-                and np.all(np.isfinite(vector))
+
+async def _limpar_documento_incompleto(rag_inst: LightRAG, doc_id: str) -> None:
+    """Remove chunks órfãos quando uma indexação falha parcialmente."""
+    try:
+        await rag_inst.adelete_by_doc_id(doc_id)
+    except Exception as exc:
+        logger.warning(
+            "event=lightrag_incomplete_cleanup_failed document_id=%s error=%s",
+            doc_id,
+            exc,
+        )
+
+
+async def insert(text: str, doc_id: str | None = None) -> None:
+    rag_inst = get_rag()
+    async with _get_insert_lock():
+        if doc_id:
+            await _substituir_documento(rag_inst, doc_id)
+
+            if hasattr(rag_inst, "apipeline_enqueue_documents") and hasattr(
+                rag_inst, "apipeline_process_enqueue_documents"
             ):
-                norma = float(np.linalg.norm(vector))
-                if np.isfinite(norma) and norma > 0:
-                    valid_vector_ids.add(chunk_id)
-        invalid_vectors = set(valid_chunks) - valid_vector_ids
-        if (
-            len(valid_chunks) != len(chunk_ids)
-            or missing_vectors
-            or invalid_vectors
-        ):
-            logger.error(
-                "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d valid_text_chunks=%d returned_vectors=%d associated_vectors=%d valid_vectors=%d missing_vectors=%d invalid_vectors=%d embedding_dimension=%d",
-                doc_id,
-                document_status,
-                len(chunk_ids),
-                len(valid_chunks),
-                len(vectors),
-                len(set(valid_chunks) & set(vectors)),
-                len(valid_vector_ids),
-                len(missing_vectors),
-                len(invalid_vectors),
-                settings.embedding_dim,
-            )
-            raise RuntimeError(
-                f"O documento {doc_id} foi processado, mas seus chunks ou "
-                "embeddings não estão todos disponíveis."
-            )
-    else:
-        await rag_inst.ainsert(text)
+                await rag_inst.apipeline_enqueue_documents(
+                    text,
+                    ids=[doc_id],
+                    process_options="!",
+                )
+                await rag_inst.apipeline_process_enqueue_documents()
+            else:
+                await rag_inst.ainsert(text, ids=[doc_id])
+
+            status = await rag_inst.doc_status.get_by_id(doc_id)
+            if not status:
+                logger.error(
+                    "event=lightrag_index_verification_failed document_id=%s reason=missing_status",
+                    doc_id,
+                )
+                raise RuntimeError(f"O documento {doc_id} não foi persistido no LightRAG.")
+
+            raw_status = status.get("status")
+            document_status = getattr(raw_status, "value", raw_status)
+            chunk_ids = list(status.get("chunks_list") or [])
+            if document_status != "processed" or not chunk_ids:
+                logger.error(
+                    "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d track_id=%s",
+                    doc_id,
+                    document_status,
+                    len(chunk_ids),
+                    status.get("track_id"),
+                )
+                await _limpar_documento_incompleto(rag_inst, doc_id)
+                raise RuntimeError(
+                    f"O documento {doc_id} não foi indexado completamente "
+                    f"(status={document_status}, chunks={len(chunk_ids)})."
+                )
+
+            chunks = await rag_inst.text_chunks.get_by_ids(chunk_ids)
+            valid_chunks = [
+                chunk_id
+                for chunk_id, chunk in zip(chunk_ids, chunks)
+                if chunk and chunk.get("content", "").strip()
+            ]
+            vectors = await recuperar_vetores_chunks(doc_id, valid_chunks)
+            missing_vectors = set(valid_chunks) - set(vectors)
+            valid_vector_ids = set()
+            for chunk_id in valid_chunks:
+                if chunk_id not in vectors:
+                    continue
+                try:
+                    vector = np.asarray(vectors[chunk_id], dtype=float)
+                except (TypeError, ValueError):
+                    continue
+                if (
+                    vector.ndim == 1
+                    and vector.size == settings.embedding_dim
+                    and np.all(np.isfinite(vector))
+                ):
+                    norma = float(np.linalg.norm(vector))
+                    if np.isfinite(norma) and norma > 0:
+                        valid_vector_ids.add(chunk_id)
+            invalid_vectors = set(valid_chunks) - valid_vector_ids
+            if (
+                len(valid_chunks) != len(chunk_ids)
+                or missing_vectors
+                or invalid_vectors
+            ):
+                logger.error(
+                    "event=lightrag_index_verification_failed document_id=%s status=%s chunk_count=%d valid_text_chunks=%d returned_vectors=%d associated_vectors=%d valid_vectors=%d missing_vectors=%d invalid_vectors=%d embedding_dimension=%d",
+                    doc_id,
+                    document_status,
+                    len(chunk_ids),
+                    len(valid_chunks),
+                    len(vectors),
+                    len(set(valid_chunks) & set(vectors)),
+                    len(valid_vector_ids),
+                    len(missing_vectors),
+                    len(invalid_vectors),
+                    settings.embedding_dim,
+                )
+                await _limpar_documento_incompleto(rag_inst, doc_id)
+                raise RuntimeError(
+                    f"O documento {doc_id} foi processado, mas seus chunks ou "
+                    "embeddings não estão todos disponíveis."
+                )
+        else:
+            await rag_inst.ainsert(text)
 
 
 async def query(question: str, mode: str = "mix") -> str:
@@ -538,6 +582,105 @@ def extrair_fonte_documento(doc_id: str, texto: str) -> dict[str, Any]:
     }
 
 
+def _normalizar_texto_busca(texto: str) -> str:
+    sem_acentos = "".join(
+        ch
+        for ch in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(ch) != "Mn"
+    )
+    return re.sub(r"\s+", " ", sem_acentos).strip().casefold()
+
+
+def _padrao_titulo(titulo_norm: str) -> re.Pattern[str]:
+    escapado = re.escape(titulo_norm)
+    inicio = r"(?<!\w)" if titulo_norm[0].isalnum() or titulo_norm[0] == "_" else ""
+    fim = r"(?!\w)" if titulo_norm[-1].isalnum() or titulo_norm[-1] == "_" else ""
+    return re.compile(f"{inicio}{escapado}{fim}")
+
+
+def identificar_fontes_mencionadas(
+    texto: str,
+    fontes_prioritarias: list[dict[str, Any]],
+    fontes_adicionais: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Retorna as fontes cujos títulos aparecem explicitamente em `texto`."""
+    prioritarias: list[dict[str, Any]] = []
+    ids_prioritarios: set[str] = set()
+    for f in fontes_prioritarias:
+        fid = str(f.get("id") or "")
+        if not fid or fid in ids_prioritarios:
+            continue
+        ids_prioritarios.add(fid)
+        prioritarias.append(f)
+
+    adicionais: list[dict[str, Any]] = []
+    ids_adicionais: set[str] = set()
+    for f in fontes_adicionais or []:
+        fid = str(f.get("id") or "")
+        if not fid or fid in ids_prioritarios or fid in ids_adicionais:
+            continue
+        ids_adicionais.add(fid)
+        adicionais.append(f)
+
+    texto_norm = _normalizar_texto_busca(texto)
+    if (not prioritarias and not adicionais) or not texto_norm:
+        return []
+
+    grupos_prioritarios: dict[str, list[str]] = {}
+    for f in prioritarias:
+        fid = str(f.get("id") or "")
+        titulo_norm = _normalizar_texto_busca(str(f.get("title") or ""))
+        if fid and titulo_norm:
+            grupos_prioritarios.setdefault(titulo_norm, []).append(fid)
+
+    grupos_adicionais: dict[str, list[str]] = {}
+    for f in adicionais:
+        fid = str(f.get("id") or "")
+        titulo_norm = _normalizar_texto_busca(str(f.get("title") or ""))
+        if fid and titulo_norm:
+            grupos_adicionais.setdefault(titulo_norm, []).append(fid)
+
+    todos_titulos = sorted(
+        set(grupos_prioritarios) | set(grupos_adicionais),
+        key=len,
+        reverse=True,
+    )
+
+    texto_restante = texto_norm
+    ids_mencionados: set[str] = set()
+    posicao_por_id: dict[str, int] = {}
+
+    for titulo_norm in todos_titulos:
+        padrao = _padrao_titulo(titulo_norm)
+        match = padrao.search(texto_restante)
+        if not match:
+            continue
+        ids_escolhidos = (
+            grupos_prioritarios.get(titulo_norm)
+            or grupos_adicionais.get(titulo_norm)
+            or []
+        )
+        for fid in ids_escolhidos:
+            ids_mencionados.add(fid)
+            posicao_por_id.setdefault(fid, match.start())
+        texto_restante = padrao.sub(
+            lambda m: " " * len(m.group(0)),
+            texto_restante,
+        )
+
+    selecionadas_prioritarias = [
+        f for f in prioritarias if str(f.get("id") or "") in ids_mencionados
+    ]
+    selecionadas_adicionais = sorted(
+        (f for f in adicionais if str(f.get("id") or "") in ids_mencionados),
+        key=lambda f: (
+            posicao_por_id.get(str(f.get("id") or ""), 0),
+            str(f.get("id") or ""),
+        ),
+    )
+    return [*selecionadas_prioritarias, *selecionadas_adicionais]
+
+
 def _extrair_chunks_list(status: Any) -> list[str]:
     if not status:
         return []
@@ -552,6 +695,38 @@ async def _obter_todos_status_docs(rag: LightRAG) -> dict[str, Any]:
     if hasattr(rag.doc_status, "docs"):
         return dict(rag.doc_status.docs)
     return {}
+
+
+async def listar_chunks_desenvolvedores() -> dict[int, list[dict[str, Any]]]:
+    rag = get_rag()
+    docs = await _obter_todos_status_docs(rag)
+    resultado: dict[int, list[dict[str, Any]]] = {}
+    for doc_id, status in docs.items():
+        if not doc_id.startswith("dev_"):
+            continue
+        try:
+            developer_id = int(doc_id.removeprefix("dev_"))
+        except ValueError:
+            continue
+        chunk_ids = _extrair_chunks_list(status)
+        if not chunk_ids:
+            continue
+        registros = await rag.text_chunks.get_by_ids(chunk_ids)
+        vetores = await recuperar_vetores_chunks(doc_id, chunk_ids)
+        chunks = [
+            {
+                "id": cid,
+                "ordem": reg.get("chunk_order_index", 0),
+                "texto": reg["content"].strip(),
+                "vetor": vetores.get(cid),
+            }
+            for cid, reg in zip(chunk_ids, registros)
+            if reg and reg.get("content", "").strip()
+        ]
+        chunks.sort(key=lambda c: c["ordem"])
+        if chunks:
+            resultado[developer_id] = chunks
+    return resultado
 
 
 async def _consultar_grafo_lightrag(
@@ -616,7 +791,8 @@ async def recuperar_contexto_geral(
     question: str,
     max_chars: int | None = None,
     top_k: int | None = None,
-) -> tuple[str, list[dict[str, Any]]]:
+    incluir_todas_fontes: bool = False,
+) -> tuple[str, list[dict[str, Any]]] | tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
     """Recupera o contexto da base de conhecimento completa e as fontes utilizadas."""
     max_chars = max_chars or settings.chat_context_max_chars
     top_k = top_k or settings.chat_context_top_k
@@ -668,8 +844,14 @@ async def recuperar_contexto_geral(
         primeiro_texto = chunks_doc[0]["texto"]
         fontes_por_doc[doc_id] = extrair_fonte_documento(doc_id, primeiro_texto)
         primeira_linha = primeiro_texto.splitlines()[0].strip() if primeiro_texto else ""
+        linhas_iniciais = [l.strip() for l in primeiro_texto.splitlines() if l.strip()]
         if primeira_linha.startswith("---"):
-            cabecalho_por_doc[doc_id] = primeira_linha
+            if len(linhas_iniciais) > 1 and linhas_iniciais[1].startswith(
+                ("O projeto ", "O desenvolvedor ")
+            ):
+                cabecalho_por_doc[doc_id] = f"{linhas_iniciais[0]}\n{linhas_iniciais[1]}"
+            else:
+                cabecalho_por_doc[doc_id] = primeira_linha
         todos_chunks.extend(chunks_doc)
 
     # Base pequena: envia todos os documentos na integra, sem precisar chamar o
@@ -679,7 +861,10 @@ async def recuperar_contexto_geral(
     if todos_chunks and total_chars_chunks <= max_chars:
         partes = [c["texto"] for c in todos_chunks]
         fontes = list(fontes_por_doc.values())
-        return "\n\n".join(partes), fontes
+        contexto = "\n\n".join(partes)
+        if incluir_todas_fontes:
+            return contexto, fontes, fontes
+        return contexto, fontes
 
     resumo_grafo, chunks_grafo_ids, chunks_grafo_raw = await _consultar_grafo_lightrag(
         rag, question, top_k=top_k
@@ -698,6 +883,8 @@ async def recuperar_contexto_geral(
                 fontes_por_doc[doc_id] = extrair_fonte_documento(doc_id, texto)
 
     if not todos_chunks and not resumo_grafo:
+        if incluir_todas_fontes:
+            return "", [], []
         return "", []
 
     # Base grande: ranqueia os chunks por similaridade vetorial + relevancia no grafo.
@@ -718,6 +905,21 @@ async def recuperar_contexto_geral(
         pontuados.sort(key=lambda par: par[0], reverse=True)
 
         usado = 0
+        catalogo_linhas: list[str] = []
+        fontes_catalogo: dict[str, dict[str, Any]] = {}
+        if max_chars >= 4000 and cabecalho_por_doc:
+            orcamento_catalogo = int(max_chars * 0.3)
+            for doc_id, cab in cabecalho_por_doc.items():
+                if not doc_id.startswith("projeto_"):
+                    continue
+                custo_cab = len(cab) + 1
+                if usado + custo_cab > orcamento_catalogo:
+                    break
+                catalogo_linhas.append(cab)
+                usado += custo_cab
+                if doc_id in fontes_por_doc:
+                    fontes_catalogo[doc_id] = fontes_por_doc[doc_id]
+
         docs_vistos: list[str] = []
         melhor_score_doc: dict[str, float] = {}
 
@@ -749,6 +951,10 @@ async def recuperar_contexto_geral(
         )
         blocos: list[str] = []
         fontes_selecionadas: list[dict[str, Any]] = []
+        if catalogo_linhas:
+            blocos.append(
+                "--- CATÁLOGO RESUMIDO DE PROJETOS ---\n" + "\n".join(catalogo_linhas)
+            )
 
         for doc_id in docs_ordenados:
             chunks_do_doc = sorted(
@@ -765,9 +971,28 @@ async def recuperar_contexto_geral(
             if doc_id in fontes_por_doc:
                 fontes_selecionadas.append(fontes_por_doc[doc_id])
 
+        ids_fontes = {f["id"] for f in fontes_selecionadas}
+        for doc_id, fonte in fontes_catalogo.items():
+            if doc_id not in ids_fontes:
+                fontes_selecionadas.append(fonte)
+                ids_fontes.add(doc_id)
+
         if resumo_grafo and usado + len(resumo_grafo) + 2 <= max_chars:
             blocos.append(resumo_grafo)
 
-        return "\n\n".join(blocos), fontes_selecionadas
+        contexto_final = "\n\n".join(blocos)
+        todas_fontes = list(fontes_por_doc.values())
+        for fonte in identificar_fontes_mencionadas(
+            contexto_final, fontes_selecionadas, todas_fontes
+        ):
+            if fonte["id"] not in ids_fontes:
+                fontes_selecionadas.append(fonte)
+                ids_fontes.add(fonte["id"])
 
+        if incluir_todas_fontes:
+            return contexto_final, fontes_selecionadas, todas_fontes
+        return contexto_final, fontes_selecionadas
+
+    if incluir_todas_fontes:
+        return resumo_grafo, [], []
     return resumo_grafo, []

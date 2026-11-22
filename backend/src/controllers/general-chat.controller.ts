@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { generalChatBodySchema } from "../schemas/general-chat.schema";
+import { criarControladorRequisicao, isAbortError } from "../services/ai-http.service";
 import {
   getConversationById,
   getRecentConversationHistory,
@@ -11,6 +12,10 @@ import {
 } from "../services/general-chat.service";
 
 export async function chatGeralController(req: Request, res: Response) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: "Usuário não autenticado." });
+  }
+
   const body = generalChatBodySchema.safeParse(req.body);
   if (!body.success) {
     return res.status(400).json({
@@ -20,12 +25,7 @@ export async function chatGeralController(req: Request, res: Response) {
   }
 
   const { question, history, conversationId } = body.data;
-  const ctrl = new AbortController();
-  res.on("close", () => {
-    if (!res.writableEnded) {
-      ctrl.abort();
-    }
-  });
+  const ctrl = criarControladorRequisicao(req, res);
 
   try {
     if (conversationId) {
@@ -33,13 +33,21 @@ export async function chatGeralController(req: Request, res: Response) {
       if (!conversa) {
         return res.status(404).json({ message: "Conversa não encontrada." });
       }
+      if (conversa.userId !== req.user.id) {
+        return res.status(403).json({ message: "Acesso negado a esta conversa." });
+      }
+      if (ctrl.signal.aborted) return;
 
       const historicoDaConversa = await getRecentConversationHistory(conversationId);
+      if (ctrl.signal.aborted) return;
+
       const resultado = await perguntarChatGeral(
         question,
         historicoDaConversa,
         ctrl.signal,
       );
+      if (ctrl.signal.aborted) return;
+
       const conversaAtualizada = await saveConversationTurn(
         conversationId,
         question,
@@ -51,13 +59,22 @@ export async function chatGeralController(req: Request, res: Response) {
         ...resultado,
         conversationId: conversaAtualizada.id,
         conversationTitle: conversaAtualizada.title,
+        userCreatedAt: conversaAtualizada.userCreatedAt,
+        createdAt: conversaAtualizada.createdAt,
       });
     }
 
+    const userCreatedAt = new Date().toISOString();
     const resultado = await perguntarChatGeral(question, history, ctrl.signal);
-    return res.status(200).json(resultado);
+    if (ctrl.signal.aborted) return;
+
+    return res.status(200).json({
+      ...resultado,
+      userCreatedAt,
+      createdAt: new Date().toISOString(),
+    });
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
+    if (isAbortError(error) || ctrl.signal.aborted) {
       return;
     }
     if (error instanceof GeneralChatServiceError) {

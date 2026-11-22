@@ -1,11 +1,16 @@
-import { ArrowLeft, ArrowUp, MessageSquare, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Loader2, MessageSquare, Sparkles, UserPlus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { criarEnviarChatProjeto } from '../services/chatService';
+import {
+  criarEnviarChatRascunho,
+  criarEnviarSugestaoDesenvolvedor,
+  montarPerguntaSugestaoDesenvolvedor,
+  PERGUNTA_ANALISAR_PROJETO,
+} from '../services/chatService';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BotaoAdicionar } from '../components/BotaoAdicionar';
 import { SeletorDesenvolvedores } from '../components/SeletorDesenvolvedores';
 import { CabecalhoItem } from '../components/CabecalhoItem';
-import { ChatLateral } from '../components/ChatLateral';
+import { ChatLateral, type ChatLateralHandle } from '../components/ChatLateral';
 import { CampoTexto } from '../components/CampoTexto';
 import { ErroCampo } from '../components/ErroCampo';
 import { OpcaoDropdown } from '../components/OpcaoDropdown';
@@ -14,12 +19,12 @@ import { SetaDropdown } from '../components/SetaDropdown';
 import { TagRemovivel } from '../components/TagRemovivel';
 import { useDesenvolvedores } from '../hooks/useDesenvolvedores';
 import { useDropdown } from '../hooks/useDropdown';
+import { useRascunhoProjeto } from '../hooks/useRascunhoProjeto';
 import { STATUS_OPCOES, useProjeto } from '../hooks/useProjeto';
 import { useTecnologias } from '../hooks/useTecnologias';
 
 export default function CadastroProjeto() {
   const { id } = useParams();
-  const enviarChat = useMemo(() => criarEnviarChatProjeto(id ?? ''), [id]);
   const {
     projeto,
     editando,
@@ -50,8 +55,56 @@ export default function CadastroProjeto() {
   const gerenciadorTecnologias = useTecnologias();
   const tecnologiasDisponiveis = gerenciadorTecnologias.tecnologias;
   const { aberto: techAberto, setAberto: setTechAberto, ref: techRef } = useDropdown();
+  const getRascunho = useRascunhoProjeto(projeto, {
+    tecnologias: tecnologiasDisponiveis,
+    desenvolvedores: devsDisponiveis,
+  });
+  const enviarChat = useMemo(() => criarEnviarChatRascunho(getRascunho), [getRascunho]);
   const nomeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [itensColapsados, setItensColapsados] = useState<Set<string>>(new Set());
+  const chatRef = useRef<ChatLateralHandle>(null);
+  const [chatOcupado, setChatOcupado] = useState(false);
+  const [analisandoProjeto, setAnalisandoProjeto] = useState(false);
+  const [pbiSugerindoId, setPbiSugerindoId] = useState<string | null>(null);
+
+  const aoMudarEnviando = (ocupado: boolean) => {
+    setChatOcupado(ocupado);
+    if (!ocupado) {
+      setAnalisandoProjeto(false);
+      setPbiSugerindoId(null);
+    }
+  };
+
+  const analisarProjeto = () => {
+    setChatAberto(true);
+    const enviado = chatRef.current?.enviarPergunta(PERGUNTA_ANALISAR_PROJETO);
+    if (enviado) setAnalisandoProjeto(true);
+  };
+
+  const sugerirDesenvolvedor = (pbi: {
+    id: string;
+    rotulo: string;
+    titulo: string;
+    userStory: string;
+    criteriosAprovacao: string;
+  }) => {
+    setChatAberto(true);
+    const dadosPbi = {
+      pbiId: /^\d+$/.test(pbi.id) ? Number(pbi.id) : null,
+      rotulo: pbi.rotulo,
+      titulo: pbi.titulo,
+      userStory: pbi.userStory,
+      criteriosAprovacao: pbi.criteriosAprovacao,
+      tecnologias: projeto.tecnologias.map(
+        (tid) => tecnologiasDisponiveis.find((t) => String(t.id) === tid)?.name ?? tid,
+      ),
+    };
+    const enviado = chatRef.current?.enviarPergunta(
+      montarPerguntaSugestaoDesenvolvedor(dadosPbi),
+      criarEnviarSugestaoDesenvolvedor(dadosPbi),
+    );
+    if (enviado) setPbiSugerindoId(pbi.id);
+  };
 
   const alternarColapso = (id: string) => {
     setItensColapsados((anterior) => {
@@ -101,7 +154,7 @@ export default function CadastroProjeto() {
         <div className="w-full pb-16 pr-4">
           <button
             type="button"
-            onClick={() => navigate(editando ? `/projetos/${id}` : '/galeria')}
+            onClick={() => navigate(editando ? `/projetos/${id}` : '/projetos')}
             className="mb-8 flex items-center gap-2 text-[#5a5f5f] hover:text-white transition-colors text-[15px] font-['Poppins']"
           >
             <ArrowLeft size={17} strokeWidth={1.75} />
@@ -336,6 +389,31 @@ export default function CadastroProjeto() {
                                                   }
                                                 />
                                                 <ErroCampo mensagem={erroDoCampo(`pbi.${pbi.id}.desenvolvedores`)} />
+
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    sugerirDesenvolvedor({
+                                                      id: pbi.id,
+                                                      rotulo: `${iE + 1}.${iF + 1}.${iP + 1}`,
+                                                      titulo: pbi.titulo,
+                                                      userStory: pbi.userStory,
+                                                      criteriosAprovacao: pbi.criteriosAprovacao,
+                                                    })
+                                                  }
+                                                  disabled={
+                                                    chatOcupado ||
+                                                    (!pbi.titulo.trim() && !pbi.userStory.trim())
+                                                  }
+                                                  className="mt-3 flex items-center gap-2 text-[15px] text-[#8a8f8f] hover:text-white transition-colors disabled:opacity-50 disabled:hover:text-[#8a8f8f] disabled:cursor-not-allowed"
+                                                >
+                                                  {pbiSugerindoId === pbi.id ? (
+                                                    <Loader2 size={16} strokeWidth={1.75} className="animate-spin" />
+                                                  ) : (
+                                                    <UserPlus size={16} strokeWidth={1.75} />
+                                                  )}
+                                                  Sugerir desenvolvedor
+                                                </button>
                                               </div>
                                             </>
                                           )}
@@ -367,9 +445,15 @@ export default function CadastroProjeto() {
           <div className="mt-12 flex items-center gap-6 font-['Poppins']">
             <button
               type="button"
-              className="flex items-center gap-2 text-lg text-[#8a8f8f] hover:text-white transition-colors"
+              onClick={analisarProjeto}
+              disabled={chatOcupado}
+              className="flex items-center gap-2 text-lg text-[#8a8f8f] hover:text-white transition-colors cursor-pointer disabled:opacity-50 disabled:hover:text-[#8a8f8f] disabled:cursor-not-allowed"
             >
-              <Sparkles size={17} strokeWidth={1.75} />
+              {analisandoProjeto ? (
+                <Loader2 size={17} strokeWidth={1.75} className="animate-spin" />
+              ) : (
+                <Sparkles size={17} strokeWidth={1.75} />
+              )}
               Analisar projeto
             </button>
             <button
@@ -423,7 +507,23 @@ export default function CadastroProjeto() {
         </button>
       )}
 
-      <ChatLateral key={id} aberto={chatAberto} onFechar={() => setChatAberto(false)} onEnviar={enviarChat} titulo="Chat do projeto" />
+      <ChatLateral
+        ref={chatRef}
+        key={id}
+        aberto={chatAberto}
+        onFechar={() => setChatAberto(false)}
+        onEnviar={enviarChat}
+        onEnviandoChange={aoMudarEnviando}
+        titulo="Chat do cadastro"
+        placeholder="Pergunte sobre este cadastro."
+        mensagemBoasVindas="Tire dúvidas enquanto preenche o projeto ou clique em Analisar projeto. Eu considero o que está no formulário agora."
+        sugestoes={[
+          'Como posso escrever bons critérios de aceitação?',
+          'Esta user story está clara? Como melhorar?',
+          'Existem projetos parecidos com este na base?',
+          'Quem já trabalhou em algo parecido com este projeto?',
+        ]}
+      />
     </div>
   );
 }

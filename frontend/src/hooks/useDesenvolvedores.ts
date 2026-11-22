@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { API_URL, authFetch } from '../services/authService';
 
 export interface Desenvolvedor {
   id: string;
@@ -11,8 +12,8 @@ export function useDesenvolvedores() {
   useEffect(() => {
     async function carregarDesenvolvedores() {
       try {
-        const resposta = await fetch(
-          'http://localhost:3000/api/developers-gallery?active=true'
+        const resposta = await authFetch(
+          `${API_URL}/api/developers-gallery?active=true`
         );
         if (!resposta.ok) throw new Error('Erro ao buscar desenvolvedores.');
 

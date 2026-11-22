@@ -1,8 +1,12 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import ollama_client
+from app.cancelamento import (
+    RequisicaoCanceladaPeloCliente,
+    executar_ate_desconectar,
+)
 from app.schemas.general_chat_schema import GeneralChatRequest, GeneralChatResponse
 from app.services.general_chat_service import general_chat_service
 
@@ -13,9 +17,17 @@ router = APIRouter(prefix="/chat", tags=["General Chat"])
 
 @router.post("/general", response_model=GeneralChatResponse)
 @router.post("", response_model=GeneralChatResponse)
-async def chat_general(request: GeneralChatRequest) -> GeneralChatResponse:
+async def chat_general(
+    request: GeneralChatRequest,
+    http_request: Request,
+) -> GeneralChatResponse | Response:
     try:
-        return await general_chat_service.responder(request)
+        return await executar_ate_desconectar(
+            http_request,
+            general_chat_service.responder(request),
+        )
+    except RequisicaoCanceladaPeloCliente:
+        return Response(status_code=499)
     except ollama_client.OllamaTimeout:
         raise HTTPException(
             status_code=504,

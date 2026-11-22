@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { API_URL, authFetch } from '../services/authService';
 import { getProjectById, updateProject, type ProjetoDetalhes } from '../services/projectService';
 
 export interface PBI {
@@ -152,28 +153,28 @@ export function useProjeto(projetoId?: string) {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [camposMarcados, setCamposMarcados] = useState<Set<string>>(new Set());
 
-  const [carregando, setCarregando] = useState(Boolean(projetoId));
+  const [idCarregado, setIdCarregado] = useState<string | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const editando = Boolean(projetoId);
+  const carregando = Boolean(projetoId) && idCarregado !== projetoId;
 
   useEffect(() => {
     if (!projetoId) return;
 
     let ativo = true;
-    setCarregando(true);
-    setErroCarga(null);
 
     getProjectById(projetoId)
       .then((dados) => {
         if (ativo) {
           setProjeto(projetoDeDetalhes(dados));
-          setCarregando(false);
+          setErroCarga(null);
+          setIdCarregado(projetoId);
         }
       })
       .catch((err) => {
         if (ativo) {
           setErroCarga(err instanceof Error ? err.message : 'Erro ao buscar projeto.');
-          setCarregando(false);
+          setIdCarregado(projetoId);
         }
       });
 
@@ -185,6 +186,13 @@ export function useProjeto(projetoId?: string) {
   const erros = validarProjeto(projeto);
   const erroDoCampo = (chave: string) => (camposMarcados.has(chave) ? erros[chave] : undefined);
   const temErrosVisiveis = Object.keys(erros).some((chave) => camposMarcados.has(chave));
+
+  const feedbackVisivel =
+    feedback?.tipo === 'erro' &&
+    feedback.mensagem === 'Há campos obrigatórios não preenchidos.' &&
+    !temErrosVisiveis
+      ? null
+      : feedback;
 
   const atualizarNome = (nome: string) => setProjeto((prev) => ({ ...prev, nome }));
 
@@ -354,7 +362,7 @@ export function useProjeto(projetoId?: string) {
         return Number(projetoId);
       }
 
-      const resposta = await fetch('http://localhost:3000/api/projects', {
+      const resposta = await authFetch(`${API_URL}/api/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(montarPayload(projeto)),
@@ -397,8 +405,8 @@ export function useProjeto(projetoId?: string) {
     projeto,
     editando,
     carregando,
-    erroCarga,
-    feedback,
+    erroCarga: carregando ? null : erroCarga,
+    feedback: feedbackVisivel,
     erroDoCampo,
     temErrosVisiveis,
     atualizarNome,
