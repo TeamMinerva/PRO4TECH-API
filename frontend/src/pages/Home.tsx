@@ -127,12 +127,23 @@ export default function Home() {
       >
         <div className="flex h-full w-[280px] flex-col sm:w-[320px]">
           <div className="flex items-center justify-between px-6 py-6">
-            <p
-              className="text-[20px] text-white"
-              style={{ fontFamily: "Outfit, sans-serif" }}
-            >
-              Histórico
-            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleLogout}
+                aria-label="Sair"
+                title="Sair"
+                className="shrink-0 text-[#5a5f5f] transition-colors hover:text-[#ED6A32]"
+              >
+                <LogOut size={20} strokeWidth={1.5} />
+              </button>
+              <p
+                className="text-[20px] text-white"
+                style={{ fontFamily: "Outfit, sans-serif" }}
+              >
+                Histórico
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => setHistoricoAberto(false)}
@@ -290,35 +301,26 @@ export default function Home() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-3 shrink-0">
-            {!linksAberto && (
-              <button
-                type="button"
-                onClick={() => setLinksAberto(true)}
-                aria-label="Links de referência"
-                className="relative shrink-0 text-[#5a5f5f] transition-colors hover:text-white"
-              >
-                <Link2 size={22} strokeWidth={1.5} className="sm:size-6" />
-                {fontes.length > 0 && (
-                  <span
-                    aria-label={`${fontes.length} fontes utilizadas`}
-                    className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#ED6A32] text-[10px] font-medium text-white"
-                  >
-                    {fontes.length}
-                  </span>
-                )}
-              </button>
-            )}
+          {linksAberto ? (
+            <div className="size-[22px] shrink-0 sm:size-6" />
+          ) : (
             <button
               type="button"
-              onClick={handleLogout}
-              aria-label="Sair"
-              title="Sair"
-              className="shrink-0 text-[#5a5f5f] transition-colors hover:text-[#ED6A32]"
+              onClick={() => setLinksAberto(true)}
+              aria-label="Links de referência"
+              className="relative shrink-0 text-[#5a5f5f] transition-colors hover:text-white"
             >
-              <LogOut size={20} strokeWidth={1.5} className="sm:size-[22px]" />
+              <Link2 size={22} strokeWidth={1.5} className="sm:size-6" />
+              {fontes.length > 0 && (
+                <span
+                  aria-label={`${fontes.length} fontes utilizadas`}
+                  className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#ED6A32] text-[10px] font-medium text-white"
+                >
+                  {fontes.length}
+                </span>
+              )}
             </button>
-          </div>
+          )}
         </header>
 
         <main
