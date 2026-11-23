@@ -1,32 +1,36 @@
-import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
+import { PrivateRoute, PublicOnlyRoute } from "./components/PrivateRoute";
+import Login from "./pages/Login";
+import Cadastro from "./pages/Cadastro";
+import CadastroProjeto from "./pages/CadastroProjeto";
+import Galeria from "./pages/Galeria";
+import DetalhesProjeto from "./pages/DetalhesProjeto";
+import DesenvolvedorDetalhes from "./pages/DesenvolvedorDetalhes";
+import Home from "./pages/Home";
 
 function App() {
-  const [message, setMessage] = useState("Conectando ao backend...");
-
-  useEffect(() => {
-    fetch("http://localhost:3000/api/test")
-      .then((response) => response.json())
-      .then((data) => {
-        setMessage(data.message);
-      })
-      .catch(() => {
-        setMessage("Não foi possível conectar ao backend.");
-        
-      });
-  }, []);
-
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold">
-          Pro4Tech
-        </h1>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<PublicOnlyRoute />}>
+          <Route path="/" element={<Login />} />
+          <Route path="/cadastro" element={<Cadastro />} />
+        </Route>
 
-        <p className="mt-4">
-          {message}
-        </p>
-      </div>
-    </div>
+        <Route element={<PrivateRoute />}>
+          <Route path="/home" element={<Home />} />
+          <Route path="/galeria" element={<Galeria />} />
+          <Route path="/cadastro-projeto" element={<CadastroProjeto />} />
+          <Route path="/desenvolvedores" element={<Galeria />} />
+          <Route path="/desenvolvedores/:id" element={<DesenvolvedorDetalhes />} />
+          <Route path="/projetos" element={<Galeria />} />
+          <Route path="/projetos/:id" element={<DetalhesProjeto />} />
+          <Route path="/projetos/:id/editar" element={<CadastroProjeto />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

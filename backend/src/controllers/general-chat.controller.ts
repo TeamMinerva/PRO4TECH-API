@@ -1,0 +1,86 @@
+import { Request, Response } from "express";
+import { generalChatBodySchema } from "../schemas/general-chat.schema";
+import { criarControladorRequisicao, isAbortError } from "../services/ai-http.service";
+import {
+  getConversationById,
+  getRecentConversationHistory,
+  saveConversationTurn,
+} from "../services/conversation.service";
+import {
+  GeneralChatServiceError,
+  perguntarChatGeral,
+} from "../services/general-chat.service";
+
+export async function chatGeralController(req: Request, res: Response) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: "Usuário não autenticado." });
+  }
+
+  const body = generalChatBodySchema.safeParse(req.body);
+  if (!body.success) {
+    return res.status(400).json({
+      message: body.error.issues[0]?.message || "Mensagem inválida.",
+      errors: body.error.flatten().fieldErrors,
+    });
+  }
+
+  const { question, history, conversationId } = body.data;
+  const ctrl = criarControladorRequisicao(req, res);
+
+  try {
+    if (conversationId) {
+      const conversa = await getConversationById(conversationId);
+      if (!conversa) {
+        return res.status(404).json({ message: "Conversa não encontrada." });
+      }
+      if (conversa.userId !== req.user.id) {
+        return res.status(403).json({ message: "Acesso negado a esta conversa." });
+      }
+      if (ctrl.signal.aborted) return;
+
+      const historicoDaConversa = await getRecentConversationHistory(conversationId);
+      if (ctrl.signal.aborted) return;
+
+      const resultado = await perguntarChatGeral(
+        question,
+        historicoDaConversa,
+        ctrl.signal,
+      );
+      if (ctrl.signal.aborted) return;
+
+      const conversaAtualizada = await saveConversationTurn(
+        conversationId,
+        question,
+        resultado.answer,
+        resultado.sources,
+      );
+
+      return res.status(200).json({
+        ...resultado,
+        conversationId: conversaAtualizada.id,
+        conversationTitle: conversaAtualizada.title,
+        userCreatedAt: conversaAtualizada.userCreatedAt,
+        createdAt: conversaAtualizada.createdAt,
+      });
+    }
+
+    const userCreatedAt = new Date().toISOString();
+    const resultado = await perguntarChatGeral(question, history, ctrl.signal);
+    if (ctrl.signal.aborted) return;
+
+    return res.status(200).json({
+      ...resultado,
+      userCreatedAt,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    if (isAbortError(error) || ctrl.signal.aborted) {
+      return;
+    }
+    if (error instanceof GeneralChatServiceError) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    console.error("Erro inesperado no chat geral:", error);
+    return res.status(500).json({ message: "Erro interno ao processar o chat." });
+  }
+}

@@ -1,0 +1,426 @@
+import { useEffect, useState } from 'react';
+import { API_URL, authFetch } from '../services/authService';
+import { getProjectById, updateProject, type ProjetoDetalhes } from '../services/projectService';
+
+export interface PBI {
+  id: string;
+  titulo: string;
+  userStory: string;
+  criteriosAprovacao: string;
+  desenvolvedores: string[];
+}
+
+export interface Feature {
+  id: string;
+  nome: string;
+  descricao: string;
+  criteriosAprovacao: string;
+  pbis: PBI[];
+}
+
+export interface Epico {
+  id: string;
+  nome: string;
+  descricao: string;
+  objetivo: string;
+  resultadoEsperado: string;
+  features: Feature[];
+}
+
+export interface Projeto {
+  nome: string;
+  status: string;
+  // ids das tecnologias (como string, igual aos ids de desenvolvedores)
+  tecnologias: string[];
+  epicos: Epico[];
+}
+
+export interface Feedback {
+  tipo: 'sucesso' | 'erro';
+  mensagem: string;
+}
+
+const projetoInicial: Projeto = {
+  nome: '',
+  status: '',
+  tecnologias: [],
+  epicos: [],
+};
+
+export const STATUS_OPCOES = [
+  { valor: 'PLANNED', label: 'Planejado' },
+  { valor: 'IN_PROGRESS', label: 'Em andamento' },
+  { valor: 'DONE', label: 'Concluído' },
+];
+
+// Itens já salvos têm id numérico (string); os criados na tela têm UUID e vão como -1 (novo).
+const idDoBanco = (id: string) => (/^\d+$/.test(id) ? Number(id) : -1);
+
+function projetoDeDetalhes(dados: ProjetoDetalhes): Projeto {
+  return {
+    nome: dados.name,
+    status: dados.status,
+    tecnologias: dados.technologyIds
+      ? dados.technologyIds.map(String)
+      : (dados.technologies || []),
+    epicos: (dados.epics || []).map((e) => ({
+      id: String(e.id),
+      nome: e.name,
+      descricao: e.description,
+      objetivo: e.objective,
+      resultadoEsperado: e.expectedResult,
+      features: e.features.map((f) => ({
+        id: String(f.id),
+        nome: f.name,
+        descricao: f.description,
+        criteriosAprovacao: f.approvalCriteria,
+        pbis: f.pbis.map((p) => ({
+          id: String(p.id),
+          titulo: p.title,
+          userStory: p.userStory,
+          criteriosAprovacao: p.acceptanceCriteria,
+          desenvolvedores: p.developers.map((d) => String(d.id)),
+        })),
+      })),
+    })),
+  };
+}
+
+function montarPayload(projeto: Projeto) {
+  return {
+    name: projeto.nome,
+    technologyIds: projeto.tecnologias.map(Number),
+    status: projeto.status,
+    epics: projeto.epicos.map((epico) => ({
+      id: idDoBanco(epico.id),
+      name: epico.nome,
+      description: epico.descricao,
+      objective: epico.objetivo,
+      expectedResult: epico.resultadoEsperado,
+      features: epico.features.map((feature) => ({
+        id: idDoBanco(feature.id),
+        name: feature.nome,
+        description: feature.descricao,
+        approvalCriteria: feature.criteriosAprovacao,
+        pbis: feature.pbis.map((pbi) => ({
+          id: idDoBanco(pbi.id),
+          title: pbi.titulo,
+          userStory: pbi.userStory,
+          acceptanceCriteria: pbi.criteriosAprovacao,
+          developerIds: pbi.desenvolvedores.map(Number),
+        })),
+      })),
+    })),
+  };
+}
+
+function validarProjeto(projeto: Projeto): Record<string, string> {
+  const erros: Record<string, string> = {};
+  const vazio = (valor: string) => valor.trim() === '';
+
+  if (vazio(projeto.nome)) erros['projeto.nome'] = 'Informe o nome do projeto.';
+  if (projeto.status === '') erros['projeto.status'] = 'Selecione um status.';
+  if (projeto.tecnologias.length === 0) erros['projeto.tecnologias'] = 'Selecione ao menos uma tecnologia.';
+
+  projeto.epicos.forEach((epico) => {
+    if (vazio(epico.nome)) erros[`epico.${epico.id}.nome`] = 'Informe o nome do épico.';
+    if (vazio(epico.descricao)) erros[`epico.${epico.id}.descricao`] = 'Informe a descrição.';
+    if (vazio(epico.objetivo)) erros[`epico.${epico.id}.objetivo`] = 'Informe o objetivo.';
+    if (vazio(epico.resultadoEsperado)) erros[`epico.${epico.id}.resultadoEsperado`] = 'Informe o resultado esperado.';
+
+    epico.features.forEach((feature) => {
+      if (vazio(feature.nome)) erros[`feature.${feature.id}.nome`] = 'Informe o nome da feature.';
+      if (vazio(feature.descricao)) erros[`feature.${feature.id}.descricao`] = 'Informe a descrição.';
+      if (vazio(feature.criteriosAprovacao))
+        erros[`feature.${feature.id}.criteriosAprovacao`] = 'Informe os critérios de aprovação.';
+
+      feature.pbis.forEach((pbi) => {
+        if (vazio(pbi.titulo)) erros[`pbi.${pbi.id}.titulo`] = 'Informe o título.';
+        if (vazio(pbi.userStory)) erros[`pbi.${pbi.id}.userStory`] = 'Informe a user story.';
+        if (vazio(pbi.criteriosAprovacao))
+          erros[`pbi.${pbi.id}.criteriosAprovacao`] = 'Informe os critérios de aceitação.';
+        if (pbi.desenvolvedores.length === 0)
+          erros[`pbi.${pbi.id}.desenvolvedores`] = 'Selecione ao menos um desenvolvedor.';
+      });
+    });
+  });
+
+  return erros;
+}
+
+export function useProjeto(projetoId?: string) {
+  const [projeto, setProjeto] = useState<Projeto>(projetoInicial);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [camposMarcados, setCamposMarcados] = useState<Set<string>>(new Set());
+
+  const [idCarregado, setIdCarregado] = useState<string | null>(null);
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
+  const editando = Boolean(projetoId);
+  const carregando = Boolean(projetoId) && idCarregado !== projetoId;
+
+  useEffect(() => {
+    if (!projetoId) return;
+
+    let ativo = true;
+
+    getProjectById(projetoId)
+      .then((dados) => {
+        if (ativo) {
+          setProjeto(projetoDeDetalhes(dados));
+          setErroCarga(null);
+          setIdCarregado(projetoId);
+        }
+      })
+      .catch((err) => {
+        if (ativo) {
+          setErroCarga(err instanceof Error ? err.message : 'Erro ao buscar projeto.');
+          setIdCarregado(projetoId);
+        }
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [projetoId]);
+
+  const erros = validarProjeto(projeto);
+  const erroDoCampo = (chave: string) => (camposMarcados.has(chave) ? erros[chave] : undefined);
+  const temErrosVisiveis = Object.keys(erros).some((chave) => camposMarcados.has(chave));
+
+  const feedbackVisivel =
+    feedback?.tipo === 'erro' &&
+    feedback.mensagem === 'Há campos obrigatórios não preenchidos.' &&
+    !temErrosVisiveis
+      ? null
+      : feedback;
+
+  const atualizarNome = (nome: string) => setProjeto((prev) => ({ ...prev, nome }));
+
+  const definirStatus = (status: string) => setProjeto((prev) => ({ ...prev, status }));
+
+  const alternarTecnologia = (tech: string) =>
+    setProjeto((prev) => ({
+      ...prev,
+      tecnologias: prev.tecnologias.includes(tech)
+        ? prev.tecnologias.filter((t) => t !== tech)
+        : [...prev.tecnologias, tech],
+    }));
+
+  const adicionarEpico = () => {
+    const novo: Epico = {
+      id: crypto.randomUUID(),
+      nome: '',
+      descricao: '',
+      objetivo: '',
+      resultadoEsperado: '',
+      features: [],
+    };
+    setProjeto((prev) => ({ ...prev, epicos: [...prev.epicos, novo] }));
+  };
+
+  const adicionarFeature = (epicoId: string) => {
+    const nova: Feature = {
+      id: crypto.randomUUID(),
+      nome: '',
+      descricao: '',
+      criteriosAprovacao: '',
+      pbis: [],
+    };
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.map((e) =>
+        e.id === epicoId ? { ...e, features: [...e.features, nova] } : e
+      ),
+    }));
+  };
+
+  const adicionarPBI = (epicoId: string, featureId: string) => {
+    const novo: PBI = {
+      id: crypto.randomUUID(),
+      titulo: '',
+      userStory: '',
+      criteriosAprovacao: '',
+      desenvolvedores: [],
+    };
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.map((e) =>
+        e.id === epicoId
+          ? {
+              ...e,
+              features: e.features.map((f) =>
+                f.id === featureId ? { ...f, pbis: [...f.pbis, novo] } : f
+              ),
+            }
+          : e
+      ),
+    }));
+  };
+
+  const removerEpico = (epicoId: string) =>
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.filter((e) => e.id !== epicoId),
+    }));
+
+  const removerFeature = (epicoId: string, featureId: string) =>
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.map((e) =>
+        e.id === epicoId
+          ? { ...e, features: e.features.filter((f) => f.id !== featureId) }
+          : e
+      ),
+    }));
+
+  const removerPBI = (epicoId: string, featureId: string, pbiId: string) =>
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.map((e) =>
+        e.id === epicoId
+          ? {
+              ...e,
+              features: e.features.map((f) =>
+                f.id === featureId
+                  ? { ...f, pbis: f.pbis.filter((p) => p.id !== pbiId) }
+                  : f
+              ),
+            }
+          : e
+      ),
+    }));
+
+  const atualizarEpico = (epicoId: string, campo: keyof Epico, valor: string) =>
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.map((e) =>
+        e.id === epicoId ? { ...e, [campo]: valor } : e
+      ),
+    }));
+
+  const atualizarFeature = (
+    epicoId: string,
+    featureId: string,
+    campo: keyof Feature,
+    valor: string
+  ) =>
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.map((e) =>
+        e.id === epicoId
+          ? {
+              ...e,
+              features: e.features.map((f) =>
+                f.id === featureId ? { ...f, [campo]: valor } : f
+              ),
+            }
+          : e
+      ),
+    }));
+
+  const atualizarPBI = (
+    epicoId: string,
+    featureId: string,
+    pbiId: string,
+    campo: keyof PBI,
+    valor: string | string[]
+  ) =>
+    setProjeto((prev) => ({
+      ...prev,
+      epicos: prev.epicos.map((e) =>
+        e.id === epicoId
+          ? {
+              ...e,
+              features: e.features.map((f) =>
+                f.id === featureId
+                  ? {
+                      ...f,
+                      pbis: f.pbis.map((p) =>
+                        p.id === pbiId ? { ...p, [campo]: valor } : p
+                      ),
+                    }
+                  : f
+              ),
+            }
+          : e
+      ),
+    }));
+
+  const handleSalvar = async (): Promise<number | null> => {
+    setFeedback(null);
+
+    const chavesComErro = Object.keys(erros);
+    if (chavesComErro.length > 0) {
+      setCamposMarcados(new Set(chavesComErro));
+      setFeedback({ tipo: 'erro', mensagem: 'Há campos obrigatórios não preenchidos.' });
+      return null;
+    }
+
+    try {
+      if (projetoId) {
+        await updateProject(projetoId, montarPayload(projeto));
+        return Number(projetoId);
+      }
+
+      const resposta = await authFetch(`${API_URL}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(montarPayload(projeto)),
+      });
+
+      if (resposta.ok) {
+        const resultado: unknown = await resposta.json();
+        if (
+          !resultado
+          || typeof resultado !== 'object'
+          || !('id' in resultado)
+          || typeof resultado.id !== 'number'
+          || !Number.isSafeInteger(resultado.id)
+          || resultado.id < 1
+        ) {
+          throw new Error('O servidor não retornou o identificador do projeto criado.');
+        }
+
+        setProjeto(projetoInicial);
+        setCamposMarcados(new Set());
+        setFeedback({ tipo: 'sucesso', mensagem: 'Projeto salvo com sucesso!' });
+        return resultado.id;
+      } else {
+        setFeedback({
+          tipo: 'erro',
+          mensagem: 'Não foi possível salvar o projeto. Verifique os campos e tente novamente.',
+        });
+      }
+    } catch (erro) {
+      console.error('Erro ao salvar:', erro);
+      setFeedback({
+        tipo: 'erro',
+        mensagem: erro instanceof Error ? erro.message : 'Não foi possível conectar ao servidor.',
+      });
+    }
+    return null;
+  };
+
+  return {
+    projeto,
+    editando,
+    carregando,
+    erroCarga: carregando ? null : erroCarga,
+    feedback: feedbackVisivel,
+    erroDoCampo,
+    temErrosVisiveis,
+    atualizarNome,
+    definirStatus,
+    alternarTecnologia,
+    adicionarEpico,
+    adicionarFeature,
+    adicionarPBI,
+    removerEpico,
+    removerFeature,
+    removerPBI,
+    atualizarEpico,
+    atualizarFeature,
+    atualizarPBI,
+    handleSalvar,
+  };
+}

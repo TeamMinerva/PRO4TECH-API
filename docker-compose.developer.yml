@@ -1,0 +1,15 @@
+services:
+  backend:
+    environment:
+      AI_URL: http://ai:8000
+      AI_TIMEOUT_MS: "1230000"
+
+  ollama:
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "8192"
+
+  ai:
+    environment:
+      AI_MODEL: qwen3:4b
+      AI_THINK: "false"
+      AI_TIMEOUT_SECONDS: "600"
